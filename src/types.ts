@@ -18,6 +18,7 @@ export type Element = {
   borderWidth?: number;
   text?: string;
   src?: string;
+  fontSize?: number;
   maskEnabled?: boolean;
   // Add other properties as needed
 };

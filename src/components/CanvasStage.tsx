@@ -52,19 +52,19 @@ export const CanvasStage = ({
     [elements, selectedIds],
   );
 
-  const boundingBox = useMemo(() => {
-    if (selectedElements.length === 0) return null;
-    const minX = Math.min(...selectedElements.map((element) => element.x));
-    const minY = Math.min(...selectedElements.map((element) => element.y));
-    const maxX = Math.max(...selectedElements.map((element) => element.x + element.width));
-    const maxY = Math.max(...selectedElements.map((element) => element.y + element.height));
-    return {
-      x: minX,
-      y: minY,
-      width: maxX - minX,
-      height: maxY - minY,
-    };
-  }, [selectedElements]);
+  const resizeHandles = useMemo(
+    () => [
+      { key: 'nw', x: 0, y: 0, cursor: 'cursor-nw-resize' },
+      { key: 'n', x: 50, y: 0, cursor: 'cursor-n-resize' },
+      { key: 'ne', x: 100, y: 0, cursor: 'cursor-ne-resize' },
+      { key: 'w', x: 0, y: 50, cursor: 'cursor-w-resize' },
+      { key: 'e', x: 100, y: 50, cursor: 'cursor-e-resize' },
+      { key: 'sw', x: 0, y: 100, cursor: 'cursor-sw-resize' },
+      { key: 's', x: 50, y: 100, cursor: 'cursor-s-resize' },
+      { key: 'se', x: 100, y: 100, cursor: 'cursor-se-resize' },
+    ],
+    [],
+  );
 
   const applySnap = (value: number, gridSize: number) =>
     Math.round(value / gridSize) * gridSize;
@@ -225,9 +225,7 @@ export const CanvasStage = ({
           <div
             key={element.id}
             onMouseDown={(event) => handleMouseDown(event, element.id)}
-            className={`absolute cursor-pointer border ${
-              isSelected ? 'border-sky-400' : 'border-transparent'
-            }`}
+            className="absolute cursor-move"
             style={{
               left: element.x,
               top: element.y,
@@ -242,37 +240,29 @@ export const CanvasStage = ({
               style={{
                 backgroundColor: element.fill ?? '#111827',
                 border: `${element.borderWidth ?? 0}px solid ${element.borderColor ?? 'transparent'}`,
+                fontSize: element.type === 'text' ? element.fontSize ?? 48 : undefined,
               }}
             >
               {element.type === 'text' ? element.text : element.name}
             </div>
+            {isSelected && (
+              <div className="pointer-events-none absolute inset-0 border-2 border-blue-500">
+                {resizeHandles.map((handle) => (
+                  <div
+                    key={handle.key}
+                    className={`pointer-events-auto absolute h-1.5 w-1.5 bg-white ${handle.cursor}`}
+                    style={{
+                      left: `${handle.x}%`,
+                      top: `${handle.y}%`,
+                      transform: 'translate(-50%, -50%)',
+                    }}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         );
       })}
-
-      {boundingBox && (
-        <div
-          className="absolute border border-sky-400"
-          style={{
-            left: boundingBox.x,
-            top: boundingBox.y,
-            width: boundingBox.width,
-            height: boundingBox.height,
-          }}
-        >
-          {['tl', 'tm', 'tr', 'ml', 'mr', 'bl', 'bm', 'br'].map((handle) => (
-            <div
-              key={handle}
-              className="absolute h-3 w-3 rounded-sm border border-sky-200 bg-sky-500"
-              style={{
-                left: handle.includes('l') ? -6 : handle.includes('r') ? '100%' : '50%',
-                top: handle.includes('t') ? -6 : handle.includes('b') ? '100%' : '50%',
-                transform: 'translate(-50%, -50%)',
-              }}
-            />
-          ))}
-        </div>
-      )}
     </div>
   );
 };

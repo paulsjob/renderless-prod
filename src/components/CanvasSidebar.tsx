@@ -25,6 +25,8 @@ export const CanvasSidebar = ({
 }: CanvasSidebarProps) => {
   const elements = layout.elements;
   const primarySelection = elements.find((element) => element.id === selectedIds[0]);
+  const hasSelection = selectedIds.length > 0;
+  const isMixedSelection = selectedIds.length > 1;
 
   const alignSelected = (mode: 'left' | 'center' | 'right') => {
     if (selectedIds.length < 2) return;
@@ -60,7 +62,7 @@ export const CanvasSidebar = ({
 
       <div className="rounded-lg border border-[#1f2636] bg-[#141a28] p-4">
         <h3 className="text-xs font-semibold uppercase text-zinc-400">Data Source</h3>
-        {primarySelection ? (
+        {primarySelection && !isMixedSelection ? (
           <div className="mt-3 space-y-3 text-xs text-zinc-300">
             <label className="flex flex-col gap-1">
               Source
@@ -117,44 +119,56 @@ export const CanvasSidebar = ({
             )}
           </div>
         ) : (
-          <div className="mt-3 text-xs text-zinc-500">Select an element to view data.</div>
+          <div className="mt-3 text-xs text-zinc-500">
+            {hasSelection ? 'Mixed Selection' : 'No Selection'}
+          </div>
         )}
       </div>
 
       <div className="rounded-lg border border-[#1f2636] bg-[#141a28] p-4">
         <h3 className="text-xs font-semibold uppercase text-zinc-400">Transform</h3>
-        {primarySelection ? (
+        {primarySelection && !isMixedSelection ? (
           <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
             {[
-              { label: 'X', key: 'x' },
-              { label: 'Y', key: 'y' },
-              { label: 'W', key: 'width' },
-              { label: 'H', key: 'height' },
-              { label: 'Rot', key: 'rotation' },
+              { label: 'X', key: 'x', unit: true },
+              { label: 'Y', key: 'y', unit: true },
+              { label: 'W', key: 'width', unit: true },
+              { label: 'H', key: 'height', unit: true },
+              { label: 'Rot', key: 'rotation', unit: false },
             ].map((field) => (
               <label key={field.key} className="flex flex-col gap-1 text-zinc-400">
                 <span>{field.label}</span>
-                <input
-                  type="number"
-                  className="rounded-md border border-[#2a3346] bg-[#0f1420] px-2 py-1 text-xs text-white"
-                  value={primarySelection[field.key as keyof LayoutElement] as number}
-                  onChange={(event) =>
-                    onUpdateElement(primarySelection.id, {
-                      [field.key]: Number(event.target.value),
-                    } as Partial<LayoutElement>)
-                  }
-                />
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    className="flex-1 rounded-md border border-[#2a3346] bg-[#0f1420] px-2 py-1 text-xs text-white"
+                    value={primarySelection[field.key as keyof LayoutElement] as number}
+                    onChange={(event) =>
+                      onUpdateElement(primarySelection.id, {
+                        [field.key]: Number(event.target.value),
+                      } as Partial<LayoutElement>)
+                    }
+                  />
+                  {field.unit && (
+                    <div className="flex items-center gap-1 text-[10px] text-zinc-500">
+                      <span className="rounded border border-[#2a3346] px-1 py-0.5">px</span>
+                      <span className="rounded border border-[#2a3346] px-1 py-0.5">%</span>
+                    </div>
+                  )}
+                </div>
               </label>
             ))}
           </div>
         ) : (
-          <div className="mt-3 text-xs text-zinc-500">No selection.</div>
+          <div className="mt-3 text-xs text-zinc-500">
+            {hasSelection ? 'Mixed Selection' : 'No Selection'}
+          </div>
         )}
       </div>
 
       <div className="rounded-lg border border-[#1f2636] bg-[#141a28] p-4">
         <h3 className="text-xs font-semibold uppercase text-zinc-400">Appearance</h3>
-        {primarySelection ? (
+        {primarySelection && !isMixedSelection ? (
           <div className="mt-3 space-y-3 text-xs">
             <label className="flex flex-col gap-1 text-zinc-400">
               Opacity
@@ -223,7 +237,9 @@ export const CanvasSidebar = ({
             </label>
           </div>
         ) : (
-          <div className="mt-3 text-xs text-zinc-500">No appearance controls.</div>
+          <div className="mt-3 text-xs text-zinc-500">
+            {hasSelection ? 'Mixed Selection' : 'No Selection'}
+          </div>
         )}
       </div>
 
