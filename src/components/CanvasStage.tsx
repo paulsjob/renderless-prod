@@ -21,6 +21,8 @@ type CanvasStageProps = {
   layout: Layout;
   selectedIds: string[];
   snapEnabled: boolean;
+  showGrid?: boolean;
+  showSafeZones?: boolean;
   onSelectionChange: (ids: string[]) => void;
   onLayoutChange: (layout: Layout) => void;
 };
@@ -33,6 +35,8 @@ export const CanvasStage = ({
   layout,
   selectedIds,
   snapEnabled,
+  showGrid = false,
+  showSafeZones = false,
   onSelectionChange,
   onLayoutChange,
 }: CanvasStageProps) => {
