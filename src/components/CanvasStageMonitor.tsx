@@ -41,6 +41,8 @@ export const CanvasStageMonitor = ({ layout, game }: any) => {
           layout={layout}
           selectedIds={[]}
           snapEnabled={false}
+          showGrid={false}
+          showSafeZones={false}
           onSelectionChange={() => undefined}
           onLayoutChange={() => undefined}
         />
