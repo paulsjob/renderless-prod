@@ -76,6 +76,9 @@ export const CanvasStage = ({
 
   const handlePointerDown = (event: React.PointerEvent, id?: string) => {
     event.stopPropagation();
+    if (event.target instanceof Element && 'setPointerCapture' in event.target) {
+      event.target.setPointerCapture(event.pointerId);
+    }
     const targetId = id ?? null;
     if (!targetId) {
       onSelectionChange([]);
@@ -106,6 +109,14 @@ export const CanvasStage = ({
       origin,
       axis: null,
     };
+  };
+
+  const handlePointerUp = (event: React.PointerEvent) => {
+    if (event.target instanceof Element && 'hasPointerCapture' in event.target) {
+      if (event.target.hasPointerCapture(event.pointerId)) {
+        event.target.releasePointerCapture(event.pointerId);
+      }
+    }
   };
 
   useEffect(() => {
@@ -208,6 +219,7 @@ export const CanvasStage = ({
     <div
       className="relative h-full w-full select-none"
       onPointerDown={(event) => handlePointerDown(event)}
+      onPointerUp={handlePointerUp}
       onClick={(event) => {
         if (event.target === event.currentTarget) {
           onSelectionChange([]);
@@ -215,28 +227,6 @@ export const CanvasStage = ({
       }}
       role="presentation"
     >
-      {showGrid && (
-        <div
-          className="pointer-events-none absolute left-0 top-0 h-full w-full"
-          style={{
-            backgroundImage:
-              'linear-gradient(to right, rgba(148,163,184,0.25) 1px, transparent 1px), linear-gradient(to bottom, rgba(148,163,184,0.25) 1px, transparent 1px)',
-            backgroundSize: `${GRID_DISPLAY_SIZE}px ${GRID_DISPLAY_SIZE}px`,
-          }}
-        />
-      )}
-      {showSafeZones && (
-        <div className="pointer-events-none absolute left-0 top-0 flex h-full w-full items-center justify-center">
-          <div
-            className="absolute border border-green-400/70"
-            style={{ width: '90%', height: '90%' }}
-          />
-          <div
-            className="absolute border border-yellow-400/70"
-            style={{ width: '80%', height: '80%' }}
-          />
-        </div>
-      )}
       {snapGuides.centerX && (
         <div className="absolute left-1/2 top-0 h-full w-px bg-cyan-400/80" />
       )}
@@ -263,6 +253,7 @@ export const CanvasStage = ({
           <div
             key={element.id}
             onPointerDown={(event) => handlePointerDown(event, element.id)}
+            onPointerUp={handlePointerUp}
             className="absolute cursor-move"
             style={{
               left: element.x,
@@ -288,6 +279,7 @@ export const CanvasStage = ({
                   src={element.src}
                   alt={element.name}
                   className="h-full w-full object-contain"
+                  style={{ width: element.width, height: element.height }}
                 />
               ) : null}
               {element.type !== 'text' && (element.type !== 'image' || !element.src) && element.name}
@@ -313,6 +305,28 @@ export const CanvasStage = ({
           </div>
         );
       })}
+      {showGrid && (
+        <div
+          className="pointer-events-none absolute left-0 top-0 z-50 h-full w-full"
+          style={{
+            backgroundImage:
+              'linear-gradient(to right, rgba(148,163,184,0.25) 1px, transparent 1px), linear-gradient(to bottom, rgba(148,163,184,0.25) 1px, transparent 1px)',
+            backgroundSize: `${GRID_DISPLAY_SIZE}px ${GRID_DISPLAY_SIZE}px`,
+          }}
+        />
+      )}
+      {showSafeZones && (
+        <div className="pointer-events-none absolute left-0 top-0 z-50 flex h-full w-full items-center justify-center">
+          <div
+            className="absolute border border-green-400/70"
+            style={{ width: '90%', height: '90%' }}
+          />
+          <div
+            className="absolute border border-yellow-400/70"
+            style={{ width: '80%', height: '80%' }}
+          />
+        </div>
+      )}
     </div>
   );
 };
