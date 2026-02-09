@@ -120,6 +120,7 @@ export default function StudioBuilder() {
   const [showRulers, setShowRulers] = useState(true);
   const [canvasScale, setCanvasScale] = useState(0.55);
   const [dragLayerId, setDragLayerId] = useState<string | null>(null);
+  const [dropLayerId, setDropLayerId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!layout) {
@@ -150,25 +151,79 @@ export default function StudioBuilder() {
 
   const addElement = (type: LayoutElement['type']) => {
     const id = `${type}-${Date.now()}`;
-    const newElement: LayoutElement = {
-      id,
-      type,
-      name: `${type[0].toUpperCase()}${type.slice(1)} Layer`,
-      visible: true,
-      hidden: false,
-      locked: false,
-      x: 240,
-      y: 220,
-      width: type === 'text' ? 360 : 260,
-      height: type === 'text' ? 120 : 180,
-      rotation: 0,
-      opacity: 100,
+    const baseDefaults = {
+      x: canvasSize.width / 2,
+      y: canvasSize.height / 2,
+      width: 260,
+      height: 180,
       fill: '#111827',
       borderColor: '#38bdf8',
       borderWidth: 2,
-      text: type === 'text' ? 'New Text' : undefined,
+      text: undefined,
+      src: undefined,
+      fontSize: undefined,
+      dataPath: `static.${type}`,
+    };
+    const defaultsByType: Record<LayoutElement['type'], Partial<LayoutElement>> = {
+      text: {
+        name: 'Text Layer',
+        width: 520,
+        height: 96,
+        fill: 'transparent',
+        borderWidth: 0,
+        text: 'New Text Layer',
+        fontSize: 48,
+        dataPath: 'static.text',
+      },
+      shape: {
+        name: 'Shape Layer',
+        width: 100,
+        height: 100,
+        fill: '#2563eb',
+        borderWidth: 0,
+        dataPath: 'static.shape',
+      },
+      image: {
+        name: 'Image Layer',
+        width: 260,
+        height: 180,
+        fill: '#4b5563',
+        borderColor: '#9ca3af',
+        borderWidth: 1,
+        dataPath: 'static.image',
+      },
+      container: {
+        name: 'Container Layer',
+        width: 320,
+        height: 220,
+        fill: '#111827',
+        borderColor: '#38bdf8',
+        borderWidth: 2,
+        dataPath: 'static.container',
+      },
+    };
+    const resolved = { ...baseDefaults, ...defaultsByType[type] };
+    const newElement: LayoutElement = {
+      id,
+      type,
+      name: resolved.name ?? `${type[0].toUpperCase()}${type.slice(1)} Layer`,
+      visible: true,
+      hidden: false,
+      locked: false,
+      x: (resolved.x ?? 0) - (resolved.width ?? 0) / 2,
+      y: (resolved.y ?? 0) - (resolved.height ?? 0) / 2,
+      width: resolved.width ?? 260,
+      height: resolved.height ?? 180,
+      rotation: 0,
+      opacity: 100,
+      fill: resolved.fill,
+      borderColor: resolved.borderColor,
+      borderWidth: resolved.borderWidth,
+      text: resolved.text,
+      src: resolved.src,
+      fontSize: resolved.fontSize,
       dataSource: 'static',
-      dataPath: 'static.text',
+      dataPath: resolved.dataPath,
       maskEnabled: false,
     };
     setLayout((prev) => {
@@ -213,6 +268,19 @@ export default function StudioBuilder() {
       const current = prev ?? initialLayout;
       return { ...current, elements: next };
     });
+    setDragLayerId(null);
+    setDropLayerId(null);
+  };
+
+  const handleLayerDragOver = (event: React.DragEvent, layerId: string) => {
+    event.preventDefault();
+    if (!dragLayerId || dragLayerId === layerId) return;
+    setDropLayerId(layerId);
+  };
+
+  const handleLayerDragEnd = () => {
+    setDragLayerId(null);
+    setDropLayerId(null);
   };
 
   const handleNudge = (dx: number, dy: number) => {
@@ -314,19 +382,27 @@ export default function StudioBuilder() {
             <div className="mt-4 space-y-2">
               {elements.map((layer) => {
                 const isSelected = selectedIds.includes(layer.id);
+                const isDragging = dragLayerId === layer.id;
+                const isDropTarget = dropLayerId === layer.id && dragLayerId !== layer.id;
                 return (
                   <div
                     key={layer.id}
                     draggable
-                    onDragStart={() => setDragLayerId(layer.id)}
-                    onDragOver={(event) => event.preventDefault()}
+                    onDragStart={() => {
+                      setDragLayerId(layer.id);
+                    }}
+                    onDragEnd={handleLayerDragEnd}
+                    onDragOver={(event) => handleLayerDragOver(event, layer.id)}
                     onDrop={(event) => handleLayerDrop(event, layer.id)}
-                    className={`rounded-lg border px-3 py-2 text-left text-xs transition ${
+                    className={`relative rounded-lg border px-3 py-2 text-left text-xs transition ${
                       isSelected
                         ? 'border-sky-500 bg-sky-500/10'
                         : 'border-[#1f2636] bg-[#141a28]'
-                    }`}
+                    } ${isDragging ? 'opacity-50' : ''}`}
                   >
+                    {isDropTarget && (
+                      <div className="absolute -top-1 left-2 right-2 h-0.5 rounded-full bg-sky-500" />
+                    )}
                     <div className="flex items-center justify-between gap-2">
                       <button
                         type="button"
