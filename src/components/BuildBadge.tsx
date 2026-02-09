@@ -1,5 +1,5 @@
-import React from "react";
-import { BUILD } from "../build";
+import React from 'react';
+import { BUILD } from '../build';
 
 export function BuildBadge() {
   return (
