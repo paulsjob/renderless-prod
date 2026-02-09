@@ -112,7 +112,7 @@ const initialLayout: Layout = {
 };
 
 export default function StudioBuilder() {
-  const { layout, setLayout } = useBroadcastController();
+  const { layout, setLayout, updateElement: controllerUpdateElement } = useBroadcastController();
   const [selectedIds, setSelectedIds] = useState<string[]>(['headline']);
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [showRulers, setShowRulers] = useState(true);
@@ -716,6 +716,7 @@ export default function StudioBuilder() {
                   >
                     <CanvasStage
                       layout={activeLayout}
+                      updateElement={controllerUpdateElement}
                       selectedIds={selectedIds}
                       snapEnabled={snapEnabled}
                       showGrid={showGrid}

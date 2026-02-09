@@ -39,6 +39,7 @@ export const CanvasStageMonitor = ({ layout, game }: any) => {
       >
         <CanvasStage
           layout={layout}
+          updateElement={() => {}}
         />
       </div>
     </div>
