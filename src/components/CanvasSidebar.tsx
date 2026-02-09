@@ -1,5 +1,11 @@
 import React from 'react';
-import { AlignCenter, AlignLeft, AlignRight } from 'lucide-react';
+import {
+  AlignCenter,
+  AlignHorizontalDistributeCenter,
+  AlignLeft,
+  AlignRight,
+  AlignVerticalDistributeCenter,
+} from 'lucide-react';
 import type { Element as LayoutElement, Layout } from '../types';
 
 const dataPaths = [
@@ -13,6 +19,7 @@ const dataPaths = [
 type CanvasSidebarProps = {
   layout: Layout;
   selectedIds: string[];
+  alignContext: 'selection' | 'stage';
   onUpdateElement: (id: string, updates: Partial<LayoutElement>) => void;
   onSelectionChange: (ids: string[]) => void;
 };
@@ -20,10 +27,12 @@ type CanvasSidebarProps = {
 export const CanvasSidebar = ({
   layout,
   selectedIds,
+  alignContext,
   onUpdateElement,
   onSelectionChange,
 }: CanvasSidebarProps) => {
   const elements = layout.elements;
+  const stageWidth = 1920;
   const primarySelection = elements.find((element) => element.id === selectedIds[0]);
   const hasSelection = selectedIds.length > 0;
   const isMixedSelection = selectedIds.length > 1;
@@ -31,9 +40,19 @@ export const CanvasSidebar = ({
   const alignSelected = (mode: 'left' | 'center' | 'right') => {
     if (selectedIds.length < 2) return;
     const selected = elements.filter((element) => selectedIds.includes(element.id));
-    const minX = Math.min(...selected.map((item) => item.x));
-    const maxX = Math.max(...selected.map((item) => item.x + item.width));
-    const targetX = mode === 'left' ? minX : mode === 'right' ? maxX : (minX + maxX) / 2;
+    const minX = alignContext === 'stage' ? 0 : Math.min(...selected.map((item) => item.x));
+    const maxX =
+      alignContext === 'stage'
+        ? stageWidth
+        : Math.max(...selected.map((item) => item.x + item.width));
+    const targetX =
+      mode === 'left'
+        ? minX
+        : mode === 'right'
+          ? maxX
+          : alignContext === 'stage'
+            ? stageWidth / 2
+            : (minX + maxX) / 2;
     selected.forEach((element) => {
       if (mode === 'center') {
         onUpdateElement(element.id, { x: targetX - element.width / 2 });
@@ -42,6 +61,19 @@ export const CanvasSidebar = ({
       } else {
         onUpdateElement(element.id, { x: targetX - element.width });
       }
+    });
+  };
+
+  const distributeSelected = (axis: 'x' | 'y') => {
+    if (selectedIds.length < 3) return;
+    const selected = elements.filter((element) => selectedIds.includes(element.id));
+    const sorted = [...selected].sort((a, b) => a[axis] - b[axis]);
+    const start = sorted[0][axis];
+    const end = sorted[sorted.length - 1][axis];
+    const step = (end - start) / (sorted.length - 1);
+    sorted.forEach((element, index) => {
+      if (index === 0 || index === sorted.length - 1) return;
+      onUpdateElement(element.id, { [axis]: start + step * index } as Partial<LayoutElement>);
     });
   };
 
@@ -245,7 +277,7 @@ export const CanvasSidebar = ({
 
       <div className="rounded-lg border border-[#1f2636] bg-[#141a28] p-4">
         <h3 className="text-xs font-semibold uppercase text-zinc-400">Alignment</h3>
-        <div className="mt-3 flex gap-2 text-xs">
+        <div className="mt-3 flex flex-wrap gap-2 text-xs">
           <button
             type="button"
             onClick={() => alignSelected('left')}
@@ -269,6 +301,22 @@ export const CanvasSidebar = ({
           >
             <AlignRight className="h-3 w-3" />
             Right
+          </button>
+          <button
+            type="button"
+            onClick={() => distributeSelected('x')}
+            className="flex items-center gap-1 rounded-md border border-[#2a3346] bg-[#0f1420] px-2 py-1 text-zinc-300 hover:text-white"
+          >
+            <AlignHorizontalDistributeCenter className="h-3 w-3" />
+            Distribute X
+          </button>
+          <button
+            type="button"
+            onClick={() => distributeSelected('y')}
+            className="flex items-center gap-1 rounded-md border border-[#2a3346] bg-[#0f1420] px-2 py-1 text-zinc-300 hover:text-white"
+          >
+            <AlignVerticalDistributeCenter className="h-3 w-3" />
+            Distribute Y
           </button>
         </div>
         {selectedIds.length > 1 ? (

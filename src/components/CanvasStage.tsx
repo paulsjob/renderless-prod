@@ -21,6 +21,8 @@ type CanvasStageProps = {
   layout: Layout;
   selectedIds: string[];
   snapEnabled: boolean;
+  showGrid: boolean;
+  showSafeZones: boolean;
   onSelectionChange: (ids: string[]) => void;
   onLayoutChange: (layout: Layout) => void;
 };
@@ -33,6 +35,8 @@ export const CanvasStage = ({
   layout,
   selectedIds,
   snapEnabled,
+  showGrid,
+  showSafeZones,
   onSelectionChange,
   onLayoutChange,
 }: CanvasStageProps) => {
@@ -201,10 +205,42 @@ export const CanvasStage = ({
 
   return (
     <div
-      className="relative h-full w-full"
+      className="relative h-full w-full select-none"
       onMouseDown={(event) => handleMouseDown(event)}
       role="presentation"
     >
+      {showGrid && (
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            backgroundImage:
+              'linear-gradient(to right, rgba(148, 163, 184, 0.12) 1px, transparent 1px), linear-gradient(to bottom, rgba(148, 163, 184, 0.12) 1px, transparent 1px)',
+            backgroundSize: '100px 100px',
+          }}
+        />
+      )}
+      {showSafeZones && (
+        <div className="pointer-events-none absolute inset-0">
+          <div
+            className="absolute border border-emerald-400/80"
+            style={{
+              left: '5%',
+              top: '5%',
+              width: '90%',
+              height: '90%',
+            }}
+          />
+          <div
+            className="absolute border border-yellow-400/80"
+            style={{
+              left: '10%',
+              top: '10%',
+              width: '80%',
+              height: '80%',
+            }}
+          />
+        </div>
+      )}
       {snapGuides.centerX && (
         <div className="absolute left-1/2 top-0 h-full w-px bg-cyan-400/80" />
       )}

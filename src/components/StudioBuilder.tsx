@@ -119,6 +119,9 @@ export default function StudioBuilder() {
   const [selectedIds, setSelectedIds] = useState<string[]>(['headline']);
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [showRulers, setShowRulers] = useState(true);
+  const [showGrid, setShowGrid] = useState(false);
+  const [showSafeZones, setShowSafeZones] = useState(false);
+  const [alignContext, setAlignContext] = useState<'selection' | 'stage'>('selection');
   const [canvasScale, setCanvasScale] = useState(0.55);
   const [dragLayerId, setDragLayerId] = useState<string | null>(null);
   const [dropLayerId, setDropLayerId] = useState<string | null>(null);
@@ -136,6 +139,7 @@ export default function StudioBuilder() {
     () => elements.filter((element) => selectedIds.includes(element.id)),
     [elements, selectedIds],
   );
+  const layerStackElements = useMemo(() => [...elements].reverse(), [elements]);
 
   const primarySelection = selectedElements[0];
 
@@ -267,11 +271,11 @@ export default function StudioBuilder() {
     const isMulti = event.ctrlKey || event.metaKey;
     const isShift = event.shiftKey;
     if (isShift && selectedIds.length) {
-      const startIndex = elements.findIndex((item) => item.id === selectedIds[0]);
-      const endIndex = elements.findIndex((item) => item.id === id);
+      const startIndex = layerStackElements.findIndex((item) => item.id === selectedIds[0]);
+      const endIndex = layerStackElements.findIndex((item) => item.id === id);
       if (startIndex !== -1 && endIndex !== -1) {
         const [from, to] = startIndex < endIndex ? [startIndex, endIndex] : [endIndex, startIndex];
-        const rangeIds = elements.slice(from, to + 1).map((item) => item.id);
+        const rangeIds = layerStackElements.slice(from, to + 1).map((item) => item.id);
         setSelectedIds(rangeIds);
         return;
       }
@@ -288,12 +292,14 @@ export default function StudioBuilder() {
   const handleLayerDrop = (event: React.DragEvent, dropId: string) => {
     event.preventDefault();
     if (!dragLayerId || dragLayerId === dropId) return;
-    const sourceIndex = elements.findIndex((item) => item.id === dragLayerId);
-    const targetIndex = elements.findIndex((item) => item.id === dropId);
+    const displayElements = [...elements].reverse();
+    const sourceIndex = displayElements.findIndex((item) => item.id === dragLayerId);
+    const targetIndex = displayElements.findIndex((item) => item.id === dropId);
     if (sourceIndex === -1 || targetIndex === -1) return;
-    const next = [...elements];
-    const [moved] = next.splice(sourceIndex, 1);
-    next.splice(targetIndex, 0, moved);
+    const nextDisplay = [...displayElements];
+    const [moved] = nextDisplay.splice(sourceIndex, 1);
+    nextDisplay.splice(targetIndex, 0, moved);
+    const next = [...nextDisplay].reverse();
     setLayout((prev) => {
       const current = prev ?? initialLayout;
       return { ...current, elements: next };
@@ -340,9 +346,20 @@ export default function StudioBuilder() {
 
   const handleAlign = (mode: 'left' | 'center' | 'right') => {
     if (selectedElements.length < 2) return;
-    const minX = Math.min(...selectedElements.map((item) => item.x));
-    const maxX = Math.max(...selectedElements.map((item) => item.x + item.width));
-    const targetX = mode === 'left' ? minX : mode === 'right' ? maxX : (minX + maxX) / 2;
+    const minX =
+      alignContext === 'stage' ? 0 : Math.min(...selectedElements.map((item) => item.x));
+    const maxX =
+      alignContext === 'stage'
+        ? canvasSize.width
+        : Math.max(...selectedElements.map((item) => item.x + item.width));
+    const targetX =
+      mode === 'left'
+        ? minX
+        : mode === 'right'
+          ? maxX
+          : alignContext === 'stage'
+            ? canvasSize.width / 2
+            : (minX + maxX) / 2;
     setLayout((prev) => {
       const current = prev ?? initialLayout;
       return {
@@ -352,7 +369,29 @@ export default function StudioBuilder() {
           if (mode === 'center') {
             return { ...element, x: targetX - element.width / 2 };
           }
-          return { ...element, x: mode === 'left' ? minX : targetX - element.width };
+          if (mode === 'left') {
+            return { ...element, x: minX };
+          }
+          return { ...element, x: targetX - element.width };
+        }),
+      };
+    });
+  };
+
+  const handleDistribute = (axis: 'x' | 'y') => {
+    if (selectedElements.length < 3) return;
+    const sorted = [...selectedElements].sort((a, b) => a[axis] - b[axis]);
+    const start = sorted[0][axis];
+    const end = sorted[sorted.length - 1][axis];
+    const step = (end - start) / (sorted.length - 1);
+    setLayout((prev) => {
+      const current = prev ?? initialLayout;
+      return {
+        ...current,
+        elements: current.elements.map((element) => {
+          const index = sorted.findIndex((item) => item.id === element.id);
+          if (index <= 0 || index >= sorted.length - 1) return element;
+          return { ...element, [axis]: start + step * index };
         }),
       };
     });
@@ -439,7 +478,7 @@ export default function StudioBuilder() {
                   Layer Stack
                 </h2>
                 <div className="mt-4 space-y-2">
-                  {elements.map((layer) => {
+                  {layerStackElements.map((layer) => {
                     const isSelected = selectedIds.includes(layer.id);
                     const isDragging = dragLayerId === layer.id;
                     const isDropTarget = dropLayerId === layer.id && dragLayerId !== layer.id;
@@ -535,8 +574,48 @@ export default function StudioBuilder() {
                 />
                 Snap
               </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={showGrid}
+                  onChange={() => setShowGrid((prev) => !prev)}
+                />
+                Grid
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={showSafeZones}
+                  onChange={() => setShowSafeZones((prev) => !prev)}
+                />
+                Safe Zones
+              </label>
             </div>
             <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1 rounded-md border border-zinc-800 bg-zinc-900 p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setAlignContext('selection')}
+                  className={`rounded-md px-2 py-1 text-[11px] ${
+                    alignContext === 'selection'
+                      ? 'bg-sky-500/20 text-white'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  Align to Selection
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAlignContext('stage')}
+                  className={`rounded-md px-2 py-1 text-[11px] ${
+                    alignContext === 'stage'
+                      ? 'bg-sky-500/20 text-white'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  Align to Stage
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={() => handleAlign('left')}
@@ -560,6 +639,20 @@ export default function StudioBuilder() {
               >
                 <AlignRight className="h-3 w-3" />
                 Right
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDistribute('x')}
+                className="flex items-center gap-1 rounded-md border border-zinc-800 bg-zinc-850 px-2 py-1 text-[11px] text-zinc-300 hover:text-white"
+              >
+                Distribute Horizontally
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDistribute('y')}
+                className="flex items-center gap-1 rounded-md border border-zinc-800 bg-zinc-850 px-2 py-1 text-[11px] text-zinc-300 hover:text-white"
+              >
+                Distribute Vertically
               </button>
               <div className="flex items-center gap-2">
                 <button
@@ -640,6 +733,8 @@ export default function StudioBuilder() {
                       layout={activeLayout}
                       selectedIds={selectedIds}
                       snapEnabled={snapEnabled}
+                      showGrid={showGrid}
+                      showSafeZones={showSafeZones}
                       onSelectionChange={setSelectedIds}
                       onLayoutChange={setLayout}
                     />
@@ -656,6 +751,7 @@ export default function StudioBuilder() {
           <CanvasSidebar
             layout={activeLayout}
             selectedIds={selectedIds}
+            alignContext={alignContext}
             onUpdateElement={updateElement}
             onSelectionChange={setSelectedIds}
           />
