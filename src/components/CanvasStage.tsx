@@ -1,39 +1,18 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import type { Layout } from '../types';
+import React, { useState, useRef } from 'react';
+import { useBroadcastController } from '../hooks/useBroadcastController';
 
-type DragState = {
-  startX: number;
-  startY: number;
-  origin: Record<string, { x: number; y: number }>;
-  axis: 'x' | 'y' | null;
-};
-
-type SnapGuides = {
-  centerX: boolean;
-  centerY: boolean;
-  left: boolean;
-  right: boolean;
-  top: boolean;
-  bottom: boolean;
-};
-
-type CanvasStageProps = {
-  layout: Layout;
+interface CanvasStageProps {
+  layout: any;
   selectedIds?: string[];
   scale?: number;
   snapEnabled?: boolean;
   showGrid?: boolean;
   showSafeZones?: boolean;
   onSelectionChange?: (ids: string[]) => void;
-  onLayoutChange?: (layout: Layout) => void;
-};
+  onLayoutChange?: (layout: any) => void;
+}
 
-const CANVAS_WIDTH = 1920;
-const CANVAS_HEIGHT = 1080;
-const GRID_SIZE = 10;
-const GRID_DISPLAY_SIZE = 100;
-
-export const CanvasStage = ({
+export const CanvasStage: React.FC<CanvasStageProps> = ({
   layout,
   selectedIds = [],
   scale = 1,
@@ -42,293 +21,208 @@ export const CanvasStage = ({
   showSafeZones = false,
   onSelectionChange = () => {},
   onLayoutChange = () => {},
-}: CanvasStageProps) => {
-  const dragStateRef = useRef<DragState | null>(null);
-  const [snapGuides, setSnapGuides] = useState<SnapGuides>({
-    centerX: false,
-    centerY: false,
-    left: false,
-    right: false,
-    top: false,
-    bottom: false,
-  });
+}) => {
+  const { updateElement } = useBroadcastController();
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [dragState, setDragState] = useState<{
+    isDragging: boolean;
+    startX: number;
+    startY: number;
+    initialPositions: Record<string, { x: number; y: number }>;
+  } | null>(null);
 
-  const elements = layout.elements;
-  const selectedElements = useMemo(
-    () => elements.filter((element) => selectedIds.includes(element.id)),
-    [elements, selectedIds],
-  );
+  // --- MOUSE HANDLERS ---
 
-  const resizeHandles = useMemo(
-    () => [
-      { key: 'nw', x: 0, y: 0, cursor: 'cursor-nw-resize' },
-      { key: 'n', x: 50, y: 0, cursor: 'cursor-n-resize' },
-      { key: 'ne', x: 100, y: 0, cursor: 'cursor-ne-resize' },
-      { key: 'w', x: 0, y: 50, cursor: 'cursor-w-resize' },
-      { key: 'e', x: 100, y: 50, cursor: 'cursor-e-resize' },
-      { key: 'sw', x: 0, y: 100, cursor: 'cursor-sw-resize' },
-      { key: 's', x: 50, y: 100, cursor: 'cursor-s-resize' },
-      { key: 'se', x: 100, y: 100, cursor: 'cursor-se-resize' },
-    ],
-    [],
-  );
+  const handlePointerDown = (e: React.PointerEvent, elementId: string) => {
+    e.stopPropagation();
+    e.preventDefault();
 
-  const applySnap = (value: number, gridSize: number) =>
-    Math.round(value / gridSize) * gridSize;
+    // Capture pointer to prevent slipping
+    (e.target as Element).setPointerCapture(e.pointerId);
 
-  const handlePointerDown = (event: React.PointerEvent, id?: string) => {
-    event.stopPropagation();
-    if (event.target instanceof Element && 'setPointerCapture' in event.target) {
-      event.target.setPointerCapture(event.pointerId);
+    // If clicking an unselected item, select it (unless shift is held for multi)
+    let newSelection = selectedIds;
+    if (!selectedIds.includes(elementId)) {
+      newSelection = e.shiftKey ? [...selectedIds, elementId] : [elementId];
+      onSelectionChange(newSelection);
     }
-    const targetId = id ?? null;
-    if (!targetId) {
-      onSelectionChange([]);
-      return;
-    }
-    const element = elements.find((item) => item.id === targetId);
-    if (!element || element.locked) return;
-    const isMulti = event.ctrlKey || event.metaKey;
-    const nextSelected = isMulti
-      ? selectedIds.includes(targetId)
-        ? selectedIds.filter((item) => item !== targetId)
-        : [...selectedIds, targetId]
-      : [targetId];
-    onSelectionChange(nextSelected);
-    if (!nextSelected.includes(targetId)) return;
 
-    const origin: DragState['origin'] = {};
-    nextSelected.forEach((selectedId) => {
-      const selected = elements.find((item) => item.id === selectedId);
-      if (selected) {
-        origin[selected.id] = { x: selected.x, y: selected.y };
+    // Store initial positions of ALL selected items to move them together
+    const initialPositions: Record<string, { x: number; y: number }> = {};
+    layout.elements.forEach((el: any) => {
+      if (newSelection.includes(el.id)) {
+        initialPositions[el.id] = { x: el.x, y: el.y };
       }
     });
 
-    dragStateRef.current = {
-      startX: event.clientX,
-      startY: event.clientY,
-      origin,
-      axis: null,
-    };
+    setDragState({
+      isDragging: true,
+      startX: e.clientX,
+      startY: e.clientY,
+      initialPositions,
+    });
   };
 
-  const handlePointerUp = (event: React.PointerEvent) => {
-    if (event.target instanceof Element && 'hasPointerCapture' in event.target) {
-      if (event.target.hasPointerCapture(event.pointerId)) {
-        event.target.releasePointerCapture(event.pointerId);
-      }
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!dragState || !dragState.isDragging) return;
+
+    // THE MATH FIX: Calculate delta divided by scale
+    const dx = (e.clientX - dragState.startX) / scale;
+    const dy = (e.clientY - dragState.startY) / scale;
+
+    // Update all selected elements
+    Object.keys(dragState.initialPositions).forEach((id) => {
+      const init = dragState.initialPositions[id];
+      updateElement(id, {
+        x: Math.round(init.x + dx),
+        y: Math.round(init.y + dy),
+      });
+    });
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (dragState) {
+      setDragState(null);
+      (e.target as Element).releasePointerCapture(e.pointerId);
     }
   };
 
-  useEffect(() => {
-    const handlePointerMove = (event: PointerEvent) => {
-      const dragState = dragStateRef.current;
-      if (!dragState) return;
-      const dx = (event.clientX - dragState.startX) / scale;
-      const dy = (event.clientY - dragState.startY) / scale;
-      let nextDx = dx;
-      let nextDy = dy;
-
-      if (event.shiftKey) {
-        if (!dragState.axis) {
-          dragState.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
-        }
-        if (dragState.axis === 'x') {
-          nextDy = 0;
-        }
-        if (dragState.axis === 'y') {
-          nextDx = 0;
-        }
-      } else {
-        dragState.axis = null;
-      }
-
-      const active = selectedElements[0];
-      if (snapEnabled && active) {
-        const origin = dragState.origin[active.id];
-        if (origin) {
-          let snappedX = applySnap(origin.x + nextDx, GRID_SIZE);
-          let snappedY = applySnap(origin.y + nextDy, GRID_SIZE);
-          const centerX = snappedX + active.width / 2;
-          const centerY = snappedY + active.height / 2;
-          const threshold = 6;
-          if (Math.abs(centerX - CANVAS_WIDTH / 2) < threshold) {
-            snappedX = CANVAS_WIDTH / 2 - active.width / 2;
-          }
-          if (Math.abs(centerY - CANVAS_HEIGHT / 2) < threshold) {
-            snappedY = CANVAS_HEIGHT / 2 - active.height / 2;
-          }
-          nextDx = snappedX - origin.x;
-          nextDy = snappedY - origin.y;
-        }
-      }
-
-      onLayoutChange({
-        ...layout,
-        elements: layout.elements.map((element) => {
-          const origin = dragState.origin[element.id];
-          if (!origin) return element;
-          return {
-            ...element,
-            x: origin.x + nextDx,
-            y: origin.y + nextDy,
-          };
-        }),
-      });
-
-      if (snapEnabled && selectedElements[0]) {
-        const activeGuide = selectedElements[0];
-        const centerX = activeGuide.x + activeGuide.width / 2 + nextDx;
-        const centerY = activeGuide.y + activeGuide.height / 2 + nextDy;
-        const threshold = 6;
-        setSnapGuides({
-          centerX: Math.abs(centerX - CANVAS_WIDTH / 2) < threshold,
-          centerY: Math.abs(centerY - CANVAS_HEIGHT / 2) < threshold,
-          left: Math.abs(activeGuide.x + nextDx) < threshold,
-          right:
-            Math.abs(activeGuide.x + activeGuide.width + nextDx - CANVAS_WIDTH) < threshold,
-          top: Math.abs(activeGuide.y + nextDy) < threshold,
-          bottom:
-            Math.abs(activeGuide.y + activeGuide.height + nextDy - CANVAS_HEIGHT) < threshold,
-        });
-      }
-    };
-
-    const handlePointerUp = () => {
-      if (dragStateRef.current) {
-        dragStateRef.current = null;
-        setSnapGuides({
-          centerX: false,
-          centerY: false,
-          left: false,
-          right: false,
-          top: false,
-          bottom: false,
-        });
-      }
-    };
-
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', handlePointerUp);
-    return () => {
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
-    };
-  }, [layout, onLayoutChange, scale, selectedElements, snapEnabled]);
+  const handleStageClick = (e: React.MouseEvent) => {
+    // Clear selection if clicking empty space
+    if (e.target === stageRef.current) {
+      onSelectionChange([]);
+    }
+  };
 
   return (
     <div
-      className="relative h-full w-full select-none"
-      onPointerDown={(event) => handlePointerDown(event)}
+      className="flex-1 bg-zinc-950 overflow-hidden relative flex items-center justify-center select-none"
+      onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) {
-          onSelectionChange([]);
-        }
-      }}
-      role="presentation"
     >
-      {snapGuides.centerX && (
-        <div className="absolute left-1/2 top-0 h-full w-px bg-cyan-400/80" />
-      )}
-      {snapGuides.centerY && (
-        <div className="absolute left-0 top-1/2 h-px w-full bg-cyan-400/80" />
-      )}
-      {snapGuides.left && <div className="absolute left-0 top-0 h-full w-px bg-cyan-400/80" />}
-      {snapGuides.right && <div className="absolute right-0 top-0 h-full w-px bg-cyan-400/80" />}
-      {snapGuides.top && <div className="absolute left-0 top-0 h-px w-full bg-cyan-400/80" />}
-      {snapGuides.bottom && (
-        <div className="absolute left-0 bottom-0 h-px w-full bg-cyan-400/80" />
-      )}
+      {/* RULERS (Static relative to viewport) */}
+      <div className="absolute top-0 left-0 w-full h-6 bg-zinc-900 border-b border-zinc-800 z-50 flex select-none text-[10px] text-zinc-500 overflow-hidden">
+        {/* Simple Horizontal Ruler Mock */}
+        {Array.from({ length: 20 }).map((_, i) => (
+          <div key={i} className="flex-shrink-0 w-[100px] border-l border-zinc-700 pl-1">
+            {i * 100}
+          </div>
+        ))}
+      </div>
+      <div className="absolute top-6 left-0 w-6 h-full bg-zinc-900 border-r border-zinc-800 z-50 flex flex-col select-none text-[10px] text-zinc-500 overflow-hidden">
+        {/* Simple Vertical Ruler Mock */}
+        {Array.from({ length: 12 }).map((_, i) => (
+          <div key={i} className="flex-shrink-0 h-[100px] border-t border-zinc-700 pt-1">
+            {i * 100}
+          </div>
+        ))}
+      </div>
 
-      {elements.map((element) => {
-        if (element.hidden || !element.visible) return null;
-        const isSelected = selectedIds.includes(element.id);
-        const backgroundColor =
-          element.type === 'text'
-            ? 'transparent'
-            : element.fill ?? (element.type === 'shape' ? '#2563eb' : '#111827');
-        const textColor = element.type === 'text' ? element.fill ?? '#ffffff' : '#ffffff';
-
-        return (
+      {/* SCALABLE STAGE CONTAINER */}
+      <div
+        ref={stageRef}
+        className="relative bg-black shadow-2xl"
+        onClick={handleStageClick}
+        style={{
+          width: 1920,
+          height: 1080,
+          transform: `scale(${scale})`,
+          transformOrigin: 'center center',
+          transition: 'transform 0.1s ease-out', // Smooth zoom
+        }}
+      >
+        {/* GRID OVERLAY (Inside Scaled Container) */}
+        {showGrid && (
           <div
-            key={element.id}
-            onPointerDown={(event) => handlePointerDown(event, element.id)}
-            onPointerUp={handlePointerUp}
-            className="absolute cursor-move"
+            className="absolute inset-0 z-0 pointer-events-none"
             style={{
-              left: element.x,
-              top: element.y,
-              width: element.width,
-              height: element.height,
-              transform: `rotate(${element.rotation}deg)`,
-              opacity: element.opacity / 100,
+              backgroundImage: 'radial-gradient(#333 1px, transparent 1px)',
+              backgroundSize: '50px 50px',
             }}
-          >
+          />
+        )}
+
+        {/* SAFE ZONES (Inside Scaled Container) */}
+        {showSafeZones && (
+          <>
+            {/* Title Safe (80%) */}
             <div
-              className="flex h-full w-full items-center justify-center text-xs"
+              className="absolute inset-0 m-auto border-2 border-yellow-500 opacity-50 z-50 pointer-events-none"
+              style={{ width: '80%', height: '80%' }}
+            />
+            {/* Action Safe (90%) */}
+            <div
+              className="absolute inset-0 m-auto border-2 border-green-500 opacity-50 z-50 pointer-events-none"
+              style={{ width: '90%', height: '90%' }}
+            />
+          </>
+        )}
+
+        {/* RENDER ELEMENTS */}
+        {layout.elements.map((el: any) => {
+          const isSelected = selectedIds.includes(el.id);
+          return (
+            <div
+              key={el.id}
+              onPointerDown={(e) => handlePointerDown(e, el.id)}
+              className={`absolute group hover:outline hover:outline-1 hover:outline-blue-400 ${
+                isSelected ? 'cursor-move' : 'cursor-pointer'
+              }`}
               style={{
-                backgroundColor,
-                color: textColor,
-                border: `${element.borderWidth ?? 0}px solid ${element.borderColor ?? 'transparent'}`,
-                fontSize: element.type === 'text' ? element.fontSize ?? 48 : undefined,
+                left: el.x,
+                top: el.y,
+                width: el.width,
+                height: el.height,
+                zIndex: 10, // Ensure above grid
               }}
             >
-              {element.type === 'text' && element.text}
-              {element.type === 'image' && element.src ? (
-                <img
-                  src={element.src}
-                  alt={element.name}
-                  className="h-full w-full object-contain"
-                  style={{ width: element.width, height: element.height }}
+              {/* SELECTION OUTLINE */}
+              {isSelected && (
+                <div className="absolute -inset-[2px] border-2 border-blue-500 pointer-events-none z-50">
+                  {/* Resize Handles (Visual Only for now) */}
+                  <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border border-blue-500" />
+                  <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border border-blue-500" />
+                  <div className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border border-blue-500" />
+                  <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border border-blue-500" />
+                </div>
+              )}
+
+              {/* CONTENT */}
+              {el.type === 'text' && (
+                <div
+                  style={{
+                    color: el.style?.color || 'white',
+                    fontSize: el.style?.fontSize || 48,
+                    width: '100%',
+                    height: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {el.data?.text || 'Text'}
+                </div>
+              )}
+              {el.type === 'shape' && (
+                <div
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: el.style?.backgroundColor || '#3b82f6',
+                  }}
                 />
-              ) : null}
-              {element.type !== 'text' && (element.type !== 'image' || !element.src) && element.name}
+              )}
+              {el.type === 'image' && (
+                <img
+                  src={el.src}
+                  style={{ width: '100%', height: '100%', objectFit: 'fill' }}
+                  draggable={false}
+                />
+              )}
             </div>
-            {isSelected && (
-              <div
-                className="pointer-events-none absolute inset-[-4px]"
-                style={{ outline: '2px solid #3b82f6', outlineOffset: '2px' }}
-              >
-                {resizeHandles.map((handle) => (
-                  <div
-                    key={handle.key}
-                    className={`pointer-events-auto absolute h-1.5 w-1.5 bg-white ${handle.cursor}`}
-                    style={{
-                      left: `${handle.x}%`,
-                      top: `${handle.y}%`,
-                      transform: 'translate(-50%, -50%)',
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
-      {showGrid && (
-        <div
-          className="pointer-events-none absolute left-0 top-0 z-50 h-full w-full"
-          style={{
-            backgroundImage:
-              'linear-gradient(to right, rgba(148,163,184,0.25) 1px, transparent 1px), linear-gradient(to bottom, rgba(148,163,184,0.25) 1px, transparent 1px)',
-            backgroundSize: `${GRID_DISPLAY_SIZE}px ${GRID_DISPLAY_SIZE}px`,
-          }}
-        />
-      )}
-      {showSafeZones && (
-        <div className="pointer-events-none absolute left-0 top-0 z-50 flex h-full w-full items-center justify-center">
-          <div
-            className="absolute border border-green-400/70"
-            style={{ width: '90%', height: '90%' }}
-          />
-          <div
-            className="absolute border border-yellow-400/70"
-            style={{ width: '80%', height: '80%' }}
-          />
-        </div>
-      )}
+          );
+        })}
+      </div>
     </div>
   );
 };
