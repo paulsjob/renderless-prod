@@ -221,6 +221,12 @@ export const CanvasStage = ({
       {elements.map((element) => {
         if (element.hidden || !element.visible) return null;
         const isSelected = selectedIds.includes(element.id);
+        const backgroundColor =
+          element.type === 'text'
+            ? 'transparent'
+            : element.fill ?? (element.type === 'shape' ? '#2563eb' : '#111827');
+        const textColor = element.type === 'text' ? element.fill ?? '#ffffff' : '#ffffff';
+
         return (
           <div
             key={element.id}
@@ -236,17 +242,29 @@ export const CanvasStage = ({
             }}
           >
             <div
-              className="flex h-full w-full items-center justify-center text-xs text-white"
+              className="flex h-full w-full items-center justify-center text-xs"
               style={{
-                backgroundColor: element.fill ?? '#111827',
+                backgroundColor,
+                color: textColor,
                 border: `${element.borderWidth ?? 0}px solid ${element.borderColor ?? 'transparent'}`,
                 fontSize: element.type === 'text' ? element.fontSize ?? 48 : undefined,
               }}
             >
-              {element.type === 'text' ? element.text : element.name}
+              {element.type === 'text' && element.text}
+              {element.type === 'image' && element.src ? (
+                <img
+                  src={element.src}
+                  alt={element.name}
+                  className="h-full w-full object-cover"
+                />
+              ) : null}
+              {element.type !== 'text' && (element.type !== 'image' || !element.src) && element.name}
             </div>
             {isSelected && (
-              <div className="pointer-events-none absolute inset-0 border-2 border-blue-500">
+              <div
+                className="pointer-events-none absolute inset-[-4px]"
+                style={{ outline: '2px solid #3b82f6', outlineOffset: '2px' }}
+              >
                 {resizeHandles.map((handle) => (
                   <div
                     key={handle.key}

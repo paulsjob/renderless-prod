@@ -13,6 +13,7 @@ import {
   Type,
   Unlock,
 } from 'lucide-react';
+import { AssetLibrary } from './AssetLibrary';
 import { CanvasSidebar } from './CanvasSidebar';
 import { CanvasStage } from './CanvasStage';
 import { useBroadcastController } from '../hooks/useBroadcastController';
@@ -121,6 +122,7 @@ export default function StudioBuilder() {
   const [canvasScale, setCanvasScale] = useState(0.55);
   const [dragLayerId, setDragLayerId] = useState<string | null>(null);
   const [dropLayerId, setDropLayerId] = useState<string | null>(null);
+  const [leftPanelTab, setLeftPanelTab] = useState<'layers' | 'assets'>('layers');
 
   useEffect(() => {
     if (!layout) {
@@ -149,7 +151,10 @@ export default function StudioBuilder() {
     });
   };
 
-  const addElement = (type: LayoutElement['type']) => {
+  const addElement = (
+    type: LayoutElement['type'],
+    overrides: Partial<LayoutElement> = {},
+  ) => {
     const id = `${type}-${Date.now()}`;
     const baseDefaults = {
       x: canvasSize.width / 2,
@@ -169,9 +174,9 @@ export default function StudioBuilder() {
         name: 'Text Layer',
         width: 520,
         height: 96,
-        fill: 'transparent',
+        fill: '#ffffff',
         borderWidth: 0,
-        text: 'New Text Layer',
+        text: 'HEADLINE',
         fontSize: 48,
         dataPath: 'static.text',
       },
@@ -196,13 +201,13 @@ export default function StudioBuilder() {
         name: 'Container Layer',
         width: 320,
         height: 220,
-        fill: '#111827',
+        fill: 'transparent',
         borderColor: '#38bdf8',
         borderWidth: 2,
         dataPath: 'static.container',
       },
     };
-    const resolved = { ...baseDefaults, ...defaultsByType[type] };
+    const resolved = { ...baseDefaults, ...defaultsByType[type], ...overrides };
     const newElement: LayoutElement = {
       id,
       type,
@@ -231,6 +236,31 @@ export default function StudioBuilder() {
       return { ...current, elements: [...current.elements, newElement] };
     });
     setSelectedIds([id]);
+  };
+
+  const handleBuildingBlockClick = (type: LayoutElement['type']) => {
+    if (type === 'image') {
+      setLeftPanelTab('assets');
+      return;
+    }
+    if (type === 'text') {
+      addElement(type, { text: 'HEADLINE', fill: '#ffffff' });
+      return;
+    }
+    if (type === 'container') {
+      addElement(type, {
+        fill: 'transparent',
+        borderColor: '#38bdf8',
+        borderWidth: 2,
+      });
+      return;
+    }
+    addElement(type);
+  };
+
+  const handleAssetSelect = (url: string) => {
+    addElement('image', { src: url, borderWidth: 0, fill: '#111827' });
+    setLeftPanelTab('layers');
   };
 
   const handleLayerSelect = (id: string, event: React.MouseEvent) => {
@@ -352,101 +382,136 @@ export default function StudioBuilder() {
   return (
     <div className="flex h-screen w-screen bg-black text-xs">
       <aside className="w-64 bg-zinc-900 border-r border-zinc-800 flex flex-col">
-        <div className="flex flex-col gap-6 p-4">
-          <div>
-            <h2 className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
-              Building Blocks
-            </h2>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              {buildingBlocks.map((block) => {
-                const Icon = block.icon;
-                return (
-                  <button
-                    key={block.id}
-                    type="button"
-                    onClick={() => addElement(block.id as LayoutElement['type'])}
-                    className="flex items-center gap-2 rounded-lg border border-dashed border-[#2a3346] bg-[#141a28] px-3 py-3 text-xs text-zinc-200 hover:border-sky-500 hover:text-white"
-                  >
-                    <Icon className="h-4 w-4" />
-                    {block.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+        <div className="flex items-center gap-2 border-b border-zinc-800 px-4 py-3">
+          <button
+            type="button"
+            onClick={() => setLeftPanelTab('layers')}
+            className={`rounded-full px-3 py-1 text-[11px] font-semibold ${
+              leftPanelTab === 'layers'
+                ? 'bg-sky-500/20 text-white'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            Layers
+          </button>
+          <button
+            type="button"
+            onClick={() => setLeftPanelTab('assets')}
+            className={`rounded-full px-3 py-1 text-[11px] font-semibold ${
+              leftPanelTab === 'assets'
+                ? 'bg-sky-500/20 text-white'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            Assets
+          </button>
+        </div>
 
-          <div>
-            <h2 className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
-              Layer Stack
-            </h2>
-            <div className="mt-4 space-y-2">
-              {elements.map((layer) => {
-                const isSelected = selectedIds.includes(layer.id);
-                const isDragging = dragLayerId === layer.id;
-                const isDropTarget = dropLayerId === layer.id && dragLayerId !== layer.id;
-                return (
-                  <div
-                    key={layer.id}
-                    draggable
-                    onDragStart={() => {
-                      setDragLayerId(layer.id);
-                    }}
-                    onDragEnd={handleLayerDragEnd}
-                    onDragOver={(event) => handleLayerDragOver(event, layer.id)}
-                    onDrop={(event) => handleLayerDrop(event, layer.id)}
-                    className={`relative rounded-lg border px-3 py-2 text-left text-xs transition ${
-                      isSelected
-                        ? 'border-sky-500 bg-sky-500/10'
-                        : 'border-[#1f2636] bg-[#141a28]'
-                    } ${isDragging ? 'opacity-50' : ''}`}
-                  >
-                    {isDropTarget && (
-                      <div className="absolute -top-1 left-2 right-2 h-0.5 rounded-full bg-sky-500" />
-                    )}
-                    <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-4">
+          {leftPanelTab === 'assets' ? (
+            <AssetLibrary onAssetSelect={handleAssetSelect} />
+          ) : (
+            <>
+              <div>
+                <h2 className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+                  Building Blocks
+                </h2>
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  {buildingBlocks.map((block) => {
+                    const Icon = block.icon;
+                    return (
                       <button
+                        key={block.id}
                         type="button"
-                        onClick={(event) => handleLayerSelect(layer.id, event)}
-                        className="flex items-center gap-2 text-left"
+                        onClick={() => handleBuildingBlockClick(block.id as LayoutElement['type'])}
+                        className="flex items-center gap-2 rounded-lg border border-dashed border-[#2a3346] bg-[#141a28] px-3 py-3 text-xs text-zinc-200 hover:border-sky-500 hover:text-white"
                       >
-                        <Move className="h-3 w-3 text-zinc-500" />
-                        <span className="font-semibold">{layer.name}</span>
+                        <Icon className="h-4 w-4" />
+                        {block.label}
                       </button>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            updateElement(layer.id, {
-                              hidden: !layer.hidden,
-                              visible: layer.hidden,
-                            })
-                          }
-                          className="text-zinc-400 hover:text-white"
-                        >
-                          {layer.hidden ? (
-                            <EyeOff className="h-4 w-4" />
-                          ) : (
-                            <Eye className="h-4 w-4" />
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => updateElement(layer.id, { locked: !layer.locked })}
-                          className="text-zinc-400 hover:text-white"
-                        >
-                          {layer.locked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+                    );
+                  })}
+                </div>
+              </div>
 
-          <div className="rounded-lg border border-[#1f2636] bg-[#141a28] p-3 text-xs text-zinc-400">
-            Selected Elements: {selectedIds.length ? selectedIds.join(', ') : 'None'}
-          </div>
+              <div>
+                <h2 className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+                  Layer Stack
+                </h2>
+                <div className="mt-4 space-y-2">
+                  {elements.map((layer) => {
+                    const isSelected = selectedIds.includes(layer.id);
+                    const isDragging = dragLayerId === layer.id;
+                    const isDropTarget = dropLayerId === layer.id && dragLayerId !== layer.id;
+                    return (
+                      <div
+                        key={layer.id}
+                        draggable
+                        onDragStart={() => {
+                          setDragLayerId(layer.id);
+                        }}
+                        onDragEnd={handleLayerDragEnd}
+                        onDragOver={(event) => handleLayerDragOver(event, layer.id)}
+                        onDrop={(event) => handleLayerDrop(event, layer.id)}
+                        className={`relative rounded-lg border px-3 py-2 text-left text-xs transition ${
+                          isSelected
+                            ? 'border-sky-500 bg-sky-500/10'
+                            : 'border-[#1f2636] bg-[#141a28]'
+                        } ${isDragging ? 'opacity-50' : ''}`}
+                      >
+                        {isDropTarget && (
+                          <div className="absolute -top-1 left-2 right-2 h-0.5 rounded-full bg-sky-500" />
+                        )}
+                        <div className="flex items-center justify-between gap-2">
+                          <button
+                            type="button"
+                            onClick={(event) => handleLayerSelect(layer.id, event)}
+                            className="flex items-center gap-2 text-left"
+                          >
+                            <Move className="h-3 w-3 text-zinc-500" />
+                            <span className="font-semibold">{layer.name}</span>
+                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateElement(layer.id, {
+                                  hidden: !layer.hidden,
+                                  visible: layer.hidden,
+                                })
+                              }
+                              className="text-zinc-400 hover:text-white"
+                            >
+                              {layer.hidden ? (
+                                <EyeOff className="h-4 w-4" />
+                              ) : (
+                                <Eye className="h-4 w-4" />
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => updateElement(layer.id, { locked: !layer.locked })}
+                              className="text-zinc-400 hover:text-white"
+                            >
+                              {layer.locked ? (
+                                <Lock className="h-4 w-4" />
+                              ) : (
+                                <Unlock className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-[#1f2636] bg-[#141a28] p-3 text-xs text-zinc-400">
+                Selected Elements: {selectedIds.length ? selectedIds.join(', ') : 'None'}
+              </div>
+            </>
+          )}
         </div>
       </aside>
 
