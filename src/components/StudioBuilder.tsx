@@ -13,6 +13,7 @@ import {
 import { AssetLibrary } from './AssetLibrary';
 import { CanvasSidebar } from './CanvasSidebar';
 import { CanvasStage } from './CanvasStage';
+import { BuildBadge } from './BuildBadge';
 import { useBroadcastController } from '../hooks/useBroadcastController';
 import type { Element as LayoutElement, Layout } from '../types';
 
@@ -637,6 +638,7 @@ export default function StudioBuilder() {
               >
                 Safe Zones
               </button>
+              <BuildBadge />
             </div>
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
