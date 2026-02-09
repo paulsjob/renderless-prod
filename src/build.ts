@@ -1,5 +1,5 @@
 // src/build.ts
 export const BUILD = {
-  id: "dev",
+  id: "CHECK-002",
   updated: new Date().toISOString(),
 } as const;
