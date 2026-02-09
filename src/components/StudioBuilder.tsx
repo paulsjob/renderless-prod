@@ -282,219 +282,227 @@ export default function StudioBuilder() {
   }, [selectedIds]);
 
   return (
-    <div className="h-screen w-screen bg-[#0a0d14] text-white flex overflow-hidden">
-      <aside className="w-[280px] border-r border-[#1d2331] bg-[#0f1420] p-4 flex flex-col gap-6">
-        <div>
-          <h2 className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
-            Building Blocks
-          </h2>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            {buildingBlocks.map((block) => {
-              const Icon = block.icon;
-              return (
-                <button
-                  key={block.id}
-                  type="button"
-                  onClick={() => addElement(block.id as LayoutElement['type'])}
-                  className="flex items-center gap-2 rounded-lg border border-dashed border-[#2a3346] bg-[#141a28] px-3 py-3 text-xs text-zinc-200 hover:border-sky-500 hover:text-white"
-                >
-                  <Icon className="h-4 w-4" />
-                  {block.label}
-                </button>
-              );
-            })}
+    <div className="flex h-screen w-screen bg-black text-xs">
+      <aside className="w-64 bg-zinc-900 border-r border-zinc-800 flex flex-col">
+        <div className="flex flex-col gap-6 p-4">
+          <div>
+            <h2 className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+              Building Blocks
+            </h2>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              {buildingBlocks.map((block) => {
+                const Icon = block.icon;
+                return (
+                  <button
+                    key={block.id}
+                    type="button"
+                    onClick={() => addElement(block.id as LayoutElement['type'])}
+                    className="flex items-center gap-2 rounded-lg border border-dashed border-[#2a3346] bg-[#141a28] px-3 py-3 text-xs text-zinc-200 hover:border-sky-500 hover:text-white"
+                  >
+                    <Icon className="h-4 w-4" />
+                    {block.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
 
-        <div>
-          <h2 className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
-            Layer Stack
-          </h2>
-          <div className="mt-4 space-y-2">
-            {elements.map((layer) => {
-              const isSelected = selectedIds.includes(layer.id);
-              return (
-                <div
-                  key={layer.id}
-                  draggable
-                  onDragStart={() => setDragLayerId(layer.id)}
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={(event) => handleLayerDrop(event, layer.id)}
-                  className={`rounded-lg border px-3 py-2 text-left text-xs transition ${
-                    isSelected
-                      ? 'border-sky-500 bg-sky-500/10'
-                      : 'border-[#1f2636] bg-[#141a28]'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <button
-                      type="button"
-                      onClick={(event) => handleLayerSelect(layer.id, event)}
-                      className="flex items-center gap-2 text-left"
-                    >
-                      <Move className="h-3 w-3 text-zinc-500" />
-                      <span className="font-semibold">{layer.name}</span>
-                    </button>
-                    <div className="flex items-center gap-2">
+          <div>
+            <h2 className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+              Layer Stack
+            </h2>
+            <div className="mt-4 space-y-2">
+              {elements.map((layer) => {
+                const isSelected = selectedIds.includes(layer.id);
+                return (
+                  <div
+                    key={layer.id}
+                    draggable
+                    onDragStart={() => setDragLayerId(layer.id)}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => handleLayerDrop(event, layer.id)}
+                    className={`rounded-lg border px-3 py-2 text-left text-xs transition ${
+                      isSelected
+                        ? 'border-sky-500 bg-sky-500/10'
+                        : 'border-[#1f2636] bg-[#141a28]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
                       <button
                         type="button"
-                        onClick={() =>
-                          updateElement(layer.id, {
-                            hidden: !layer.hidden,
-                            visible: layer.hidden,
-                          })
-                        }
-                        className="text-zinc-400 hover:text-white"
+                        onClick={(event) => handleLayerSelect(layer.id, event)}
+                        className="flex items-center gap-2 text-left"
                       >
-                        {layer.hidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        <Move className="h-3 w-3 text-zinc-500" />
+                        <span className="font-semibold">{layer.name}</span>
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => updateElement(layer.id, { locked: !layer.locked })}
-                        className="text-zinc-400 hover:text-white"
-                      >
-                        {layer.locked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateElement(layer.id, {
+                              hidden: !layer.hidden,
+                              visible: layer.hidden,
+                            })
+                          }
+                          className="text-zinc-400 hover:text-white"
+                        >
+                          {layer.hidden ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateElement(layer.id, { locked: !layer.locked })}
+                          className="text-zinc-400 hover:text-white"
+                        >
+                          {layer.locked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
 
-        <div className="rounded-lg border border-[#1f2636] bg-[#141a28] p-3 text-xs text-zinc-400">
-          Selected Elements: {selectedIds.length ? selectedIds.join(', ') : 'None'}
+          <div className="rounded-lg border border-[#1f2636] bg-[#141a28] p-3 text-xs text-zinc-400">
+            Selected Elements: {selectedIds.length ? selectedIds.join(', ') : 'None'}
+          </div>
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col">
-        <div className="flex items-center justify-between border-b border-[#1d2331] bg-[#0f1420] px-4 py-2 text-xs text-zinc-400">
-          <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={showRulers}
-                onChange={() => setShowRulers((prev) => !prev)}
-              />
-              Rulers
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={snapEnabled}
-                onChange={() => setSnapEnabled((prev) => !prev)}
-              />
-              Snap
-            </label>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => handleAlign('left')}
-              className="flex items-center gap-1 rounded-md border border-[#1f2636] bg-[#141a28] px-2 py-1 text-[11px] text-zinc-300 hover:text-white"
-            >
-              <AlignLeft className="h-3 w-3" />
-              Left
-            </button>
-            <button
-              type="button"
-              onClick={() => handleAlign('center')}
-              className="flex items-center gap-1 rounded-md border border-[#1f2636] bg-[#141a28] px-2 py-1 text-[11px] text-zinc-300 hover:text-white"
-            >
-              <AlignCenter className="h-3 w-3" />
-              Center
-            </button>
-            <button
-              type="button"
-              onClick={() => handleAlign('right')}
-              className="flex items-center gap-1 rounded-md border border-[#1f2636] bg-[#141a28] px-2 py-1 text-[11px] text-zinc-300 hover:text-white"
-            >
-              <AlignRight className="h-3 w-3" />
-              Right
-            </button>
-            <div className="flex items-center gap-2">
+      <main className="flex-1 relative bg-zinc-950 overflow-hidden flex items-center justify-center">
+        <div className="absolute inset-0 flex flex-col">
+          <div className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900 px-4 py-2 text-xs text-zinc-300">
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={showRulers}
+                  onChange={() => setShowRulers((prev) => !prev)}
+                />
+                Rulers
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={snapEnabled}
+                  onChange={() => setSnapEnabled((prev) => !prev)}
+                />
+                Snap
+              </label>
+            </div>
+            <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => setCanvasScale((prev) => Math.max(0.3, prev - 0.05))}
-                className="rounded-md border border-[#1f2636] bg-[#141a28] px-2 py-1 text-[11px] text-zinc-300 hover:text-white"
+                onClick={() => handleAlign('left')}
+                className="flex items-center gap-1 rounded-md border border-zinc-800 bg-zinc-850 px-2 py-1 text-[11px] text-zinc-300 hover:text-white"
               >
-                -
+                <AlignLeft className="h-3 w-3" />
+                Left
               </button>
-              <span className="text-[11px] text-zinc-400">{Math.round(canvasScale * 100)}%</span>
               <button
                 type="button"
-                onClick={() => setCanvasScale((prev) => Math.min(1, prev + 0.05))}
-                className="rounded-md border border-[#1f2636] bg-[#141a28] px-2 py-1 text-[11px] text-zinc-300 hover:text-white"
+                onClick={() => handleAlign('center')}
+                className="flex items-center gap-1 rounded-md border border-zinc-800 bg-zinc-850 px-2 py-1 text-[11px] text-zinc-300 hover:text-white"
               >
-                +
+                <AlignCenter className="h-3 w-3" />
+                Center
               </button>
+              <button
+                type="button"
+                onClick={() => handleAlign('right')}
+                className="flex items-center gap-1 rounded-md border border-zinc-800 bg-zinc-850 px-2 py-1 text-[11px] text-zinc-300 hover:text-white"
+              >
+                <AlignRight className="h-3 w-3" />
+                Right
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCanvasScale((prev) => Math.max(0.3, prev - 0.05))}
+                  className="rounded-md border border-zinc-800 bg-zinc-850 px-2 py-1 text-[11px] text-zinc-300 hover:text-white"
+                >
+                  -
+                </button>
+                <span className="text-[11px] text-zinc-400">{Math.round(canvasScale * 100)}%</span>
+                <button
+                  type="button"
+                  onClick={() => setCanvasScale((prev) => Math.min(1, prev + 0.05))}
+                  className="rounded-md border border-zinc-800 bg-zinc-850 px-2 py-1 text-[11px] text-zinc-300 hover:text-white"
+                >
+                  +
+                </button>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="flex-1 bg-[#0b0f1a] p-6">
-          <div className="relative h-full w-full overflow-auto rounded-2xl border border-[#1f2636] bg-[#0a0d14] p-6">
-            <div
-              className="relative"
-              style={{
-                width: canvasSize.width * canvasScale + (showRulers ? rulerSize : 0),
-                height: canvasSize.height * canvasScale + (showRulers ? rulerSize : 0),
-              }}
-            >
-              {showRulers && (
-                <div
-                  className="absolute left-[24px] top-0 h-[24px] w-full bg-[#0f1420] border-b border-[#1f2636]"
-                  style={{ width: canvasSize.width * canvasScale }}
-                >
-                  <div className="flex h-full">
-                    {Array.from({ length: canvasSize.width / 100 + 1 }).map((_, index) => (
-                      <div key={`x-${index}`} className="relative h-full flex-1">
-                        <div className="absolute bottom-1 left-0 h-2 w-px bg-zinc-600" />
-                        <span className="absolute bottom-0 left-1 text-[10px] text-zinc-500">
-                          {index * 100}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {showRulers && (
-                <div
-                  className="absolute left-0 top-[24px] w-[24px] h-full bg-[#0f1420] border-r border-[#1f2636]"
-                  style={{ height: canvasSize.height * canvasScale }}
-                >
-                  <div className="flex h-full flex-col">
-                    {Array.from({ length: canvasSize.height / 100 + 1 }).map((_, index) => (
-                      <div key={`y-${index}`} className="relative flex-1">
-                        <div className="absolute right-1 top-0 h-px w-2 bg-zinc-600" />
-                        <span className="absolute right-1 top-1 text-[10px] text-zinc-500">
-                          {index * 100}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
+          <div className="flex-1 p-6">
+            <div className="relative h-full w-full overflow-auto rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
               <div
-                className="absolute left-[24px] top-[24px] origin-top-left rounded-xl border border-[#2a3346] bg-[#0a0d14] shadow-2xl"
+                className="relative"
                 style={{
-                  width: canvasSize.width * canvasScale,
-                  height: canvasSize.height * canvasScale,
+                  width: canvasSize.width * canvasScale + (showRulers ? rulerSize : 0),
+                  height: canvasSize.height * canvasScale + (showRulers ? rulerSize : 0),
                 }}
               >
+                {showRulers && (
+                  <div
+                    className="absolute left-[24px] top-0 h-[24px] w-full border-b border-zinc-800 bg-zinc-900"
+                    style={{ width: canvasSize.width * canvasScale }}
+                  >
+                    <div className="flex h-full w-full">
+                      {Array.from({ length: canvasSize.width / 100 + 1 }).map((_, index) => (
+                        <div key={`x-${index}`} className="relative flex-1">
+                          <div className="absolute bottom-1 left-0 h-2 w-px bg-zinc-600" />
+                          <span className="absolute bottom-0 left-1 text-[10px] text-zinc-500">
+                            {index * 100}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {showRulers && (
+                  <div
+                    className="absolute left-0 top-[24px] h-full w-[24px] border-r border-zinc-800 bg-zinc-900"
+                    style={{ height: canvasSize.height * canvasScale }}
+                  >
+                    <div className="flex h-full w-full flex-col">
+                      {Array.from({ length: canvasSize.height / 100 + 1 }).map((_, index) => (
+                        <div key={`y-${index}`} className="relative flex-1">
+                          <div className="absolute right-1 top-0 h-px w-2 bg-zinc-600" />
+                          <span className="absolute right-1 top-1 text-[10px] text-zinc-500">
+                            {index * 100}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div
-                  className="relative h-full w-full"
-                  style={{ transform: `scale(${canvasScale})`, transformOrigin: 'top left' }}
+                  className="absolute left-[24px] top-[24px] origin-top-left rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl"
+                  style={{
+                    width: canvasSize.width * canvasScale,
+                    height: canvasSize.height * canvasScale,
+                  }}
                 >
-                  <CanvasStage
-                    layout={activeLayout}
-                    selectedIds={selectedIds}
-                    snapEnabled={snapEnabled}
-                    onSelectionChange={setSelectedIds}
-                    onLayoutChange={setLayout}
-                  />
+                  <div
+                    className="relative h-full w-full"
+                    style={{ transform: `scale(${canvasScale})`, transformOrigin: 'top left' }}
+                  >
+                    <CanvasStage
+                      layout={activeLayout}
+                      selectedIds={selectedIds}
+                      snapEnabled={snapEnabled}
+                      onSelectionChange={setSelectedIds}
+                      onLayoutChange={setLayout}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -502,13 +510,15 @@ export default function StudioBuilder() {
         </div>
       </main>
 
-      <aside className="w-[300px] border-l border-[#1d2331] bg-[#0f1420] p-4 flex flex-col gap-6">
-        <CanvasSidebar
-          layout={activeLayout}
-          selectedIds={selectedIds}
-          onUpdateElement={updateElement}
-          onSelectionChange={setSelectedIds}
-        />
+      <aside className="w-72 bg-zinc-900 border-l border-zinc-800 p-2">
+        <div className="flex h-full flex-col gap-6">
+          <CanvasSidebar
+            layout={activeLayout}
+            selectedIds={selectedIds}
+            onUpdateElement={updateElement}
+            onSelectionChange={setSelectedIds}
+          />
+        </div>
       </aside>
     </div>
   );
