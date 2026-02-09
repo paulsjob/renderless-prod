@@ -22,9 +22,10 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
   onSelectionChange = () => {},
   onLayoutChange = () => {},
 }) => {
-  // FIX: Destructure setLayout instead of the missing updateElement
+  // FIX: Destructure setLayout (which exists) instead of updateElement (which missed)
   const { setLayout } = useBroadcastController(); 
   const stageRef = useRef<HTMLDivElement>(null);
+  
   const [dragState, setDragState] = useState<{
     isDragging: boolean;
     startX: number;
@@ -32,7 +33,7 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
     initialPositions: Record<string, { x: number; y: number }>;
   } | null>(null);
 
-  // --- LOCAL HELPER ---
+  // --- LOCAL UPDATE HELPER (Bypasses missing hook function) ---
   const updateElement = (id: string, updates: any) => {
     setLayout((prev: any) => {
       if (!prev) return prev;
@@ -51,14 +52,17 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
     e.stopPropagation();
     e.preventDefault();
     
+    // 1. Capture Pointer (Prevents mouse slipping off element)
     (e.target as Element).setPointerCapture(e.pointerId);
 
+    // 2. Handle Selection
     let newSelection = selectedIds;
     if (!selectedIds.includes(elementId)) {
         newSelection = e.shiftKey ? [...selectedIds, elementId] : [elementId];
         onSelectionChange(newSelection);
     }
 
+    // 3. Store Initial Positions (Snapshot for Drag)
     const initialPositions: Record<string, { x: number; y: number }> = {};
     if (layout && layout.elements) {
         layout.elements.forEach((el: any) => {
@@ -80,6 +84,7 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
     if (!dragState || !dragState.isDragging) return;
 
     // THE MATH FIX: Calculate delta divided by scale
+    // This ensures 100px mouse move = 100px element move, regardless of zoom
     const dx = (e.clientX - dragState.startX) / scale;
     const dy = (e.clientY - dragState.startY) / scale;
 
@@ -105,7 +110,6 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
     }
   };
 
-  // Safe Guard: If layout is null, render nothing
   if (!layout) return <div className="flex-1 bg-zinc-950" />;
 
   return (
@@ -114,19 +118,19 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
     >
-      {/* RULERS */}
-      <div className="absolute top-0 left-0 w-full h-6 bg-zinc-900 border-b border-zinc-800 z-50 flex select-none text-[10px] text-zinc-500 overflow-hidden">
+      {/* RULERS (Static & Unselectable) */}
+      <div className="absolute top-0 left-0 w-full h-6 bg-zinc-900 border-b border-zinc-800 z-50 flex select-none text-[10px] text-zinc-500 overflow-hidden pointer-events-none">
         {Array.from({ length: 20 }).map((_, i) => (
              <div key={i} className="flex-shrink-0 w-[100px] border-l border-zinc-700 pl-1">{i * 100}</div>
         ))}
       </div>
-      <div className="absolute top-6 left-0 w-6 h-full bg-zinc-900 border-r border-zinc-800 z-50 flex flex-col select-none text-[10px] text-zinc-500 overflow-hidden">
+      <div className="absolute top-6 left-0 w-6 h-full bg-zinc-900 border-r border-zinc-800 z-50 flex flex-col select-none text-[10px] text-zinc-500 overflow-hidden pointer-events-none">
         {Array.from({ length: 12 }).map((_, i) => (
              <div key={i} className="flex-shrink-0 h-[100px] border-t border-zinc-700 pt-1">{i * 100}</div>
         ))}
       </div>
 
-      {/* STAGE */}
+      {/* ZOOM CONTAINER */}
       <div 
         ref={stageRef}
         className="relative bg-black shadow-2xl"
@@ -139,7 +143,7 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
           transition: 'transform 0.1s ease-out'
         }}
       >
-        {/* GRID */}
+        {/* GRID (Inside Zoom) */}
         {showGrid && (
             <div 
                 className="absolute inset-0 z-0 pointer-events-none" 
@@ -150,7 +154,7 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
             />
         )}
 
-        {/* SAFE ZONES */}
+        {/* SAFE ZONES (Inside Zoom) */}
         {showSafeZones && (
             <>
                 <div className="absolute inset-0 m-auto border-2 border-yellow-500 opacity-50 z-50 pointer-events-none" style={{ width: '80%', height: '80%' }} />
@@ -158,14 +162,14 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
             </>
         )}
 
-        {/* ELEMENTS */}
+        {/* LAYOUT ELEMENTS */}
         {layout.elements && layout.elements.map((el: any) => {
             const isSelected = selectedIds.includes(el.id);
             return (
                 <div
                     key={el.id}
                     onPointerDown={(e) => handlePointerDown(e, el.id)}
-                    className={`absolute group hover:outline hover:outline-1 hover:outline-blue-400 ${isSelected ? 'cursor-move' : 'cursor-pointer'}`}
+                    className={`absolute group outline-none ${isSelected ? 'cursor-move' : 'cursor-pointer'}`}
                     style={{
                         left: el.x,
                         top: el.y,
@@ -174,17 +178,23 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
                         zIndex: 10
                     }}
                 >
-                    {/* SELECTION UI */}
+                    {/* SELECTION BOX */}
                     {isSelected && (
                         <div className="absolute -inset-[2px] border-2 border-blue-500 pointer-events-none z-50">
+                            {/* Visual Corners */}
                             <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border border-blue-500" />
                             <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border border-blue-500" />
                             <div className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border border-blue-500" />
                             <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border border-blue-500" />
                         </div>
                     )}
+                    
+                    {/* Hover Outline (Only when not selected) */}
+                    {!isSelected && (
+                         <div className="absolute inset-0 border border-blue-400 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity" />
+                    )}
 
-                    {/* CONTENT TYPES */}
+                    {/* CONTENT */}
                     {el.type === 'text' && (
                         <div 
                             style={{ 
@@ -192,17 +202,18 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
                                 fontSize: el.style?.fontSize || 48,
                                 width: '100%', height: '100%',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                whiteSpace: 'nowrap'
+                                whiteSpace: 'nowrap',
+                                pointerEvents: 'none' // Prevent text selection
                             }}
                         >
                             {el.data?.text || 'Text'}
                         </div>
                     )}
                     {el.type === 'shape' && (
-                         <div style={{ width: '100%', height: '100%', backgroundColor: el.style?.backgroundColor || '#3b82f6' }} />
+                         <div style={{ width: '100%', height: '100%', backgroundColor: el.style?.backgroundColor || '#3b82f6', pointerEvents: 'none' }} />
                     )}
                     {el.type === 'image' && (
-                         <img src={el.src} style={{ width: '100%', height: '100%', objectFit: 'fill' }} draggable={false} />
+                         <img src={el.src} style={{ width: '100%', height: '100%', objectFit: 'fill', pointerEvents: 'none' }} draggable={false} />
                     )}
                 </div>
             );
