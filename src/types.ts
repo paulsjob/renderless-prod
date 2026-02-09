@@ -13,5 +13,18 @@ export type Element = {
   opacity: number;
   dataSource?: string;
   dataPath?: string;
+  fill?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  text?: string;
+  src?: string;
+  maskEnabled?: boolean;
   // Add other properties as needed
+};
+
+export type Layout = {
+  id: string;
+  name: string;
+  aspect_ratio: '16:9' | '9:16';
+  elements: Element[];
 };

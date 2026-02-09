@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import type { Layout } from '../types';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -10,6 +11,7 @@ const supabaseClient =
 export const useBroadcastController = () => {
   const [previewSource, setPreviewSource] = useState('Intro Open');
   const [programSource, setProgramSource] = useState('Standby');
+  const [layout, setLayout] = useState<Layout | null>(null);
 
   const take = useCallback(() => {
     const nextSource = previewSource;
@@ -33,5 +35,7 @@ export const useBroadcastController = () => {
     programSource,
     take,
     setPreviewSource,
+    layout,
+    setLayout,
   };
 };

@@ -37,7 +37,13 @@ export const CanvasStageMonitor = ({ layout, game }: any) => {
           pointerEvents: 'none',
         }}
       >
-        <CanvasStage layout={layout} game={game} />
+        <CanvasStage
+          layout={layout}
+          selectedIds={[]}
+          snapEnabled={false}
+          onSelectionChange={() => undefined}
+          onLayoutChange={() => undefined}
+        />
       </div>
     </div>
   );
