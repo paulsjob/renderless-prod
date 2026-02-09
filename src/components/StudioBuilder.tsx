@@ -1,8 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlignCenter,
-  AlignLeft,
-  AlignRight,
   Box,
   Eye,
   EyeOff,
@@ -125,7 +122,6 @@ export default function StudioBuilder() {
   const [dragLayerId, setDragLayerId] = useState<string | null>(null);
   const [dropLayerId, setDropLayerId] = useState<string | null>(null);
   const [leftPanelTab, setLeftPanelTab] = useState<'layers' | 'assets'>('layers');
-  const [alignTarget, setAlignTarget] = useState<'selection' | 'stage'>('selection');
   const canvasViewportRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -137,12 +133,6 @@ export default function StudioBuilder() {
   const activeLayout = layout ?? initialLayout;
   const elements = activeLayout.elements;
   const reversedElements = useMemo(() => [...elements].reverse(), [elements]);
-  const selectedElements = useMemo(
-    () => elements.filter((element) => selectedIds.includes(element.id)),
-    [elements, selectedIds],
-  );
-
-  const primarySelection = selectedElements[0];
 
   const updateElement = (id: string, updates: Partial<LayoutElement>) => {
     setLayout((prev) => {
@@ -246,11 +236,15 @@ export default function StudioBuilder() {
   const addAsset = (url: string) => {
     const img = new Image();
     img.onload = () => {
-      const maxDimension = 1000;
-      const scale = Math.min(1, maxDimension / Math.max(img.naturalWidth, img.naturalHeight));
-      const width = Math.round(img.naturalWidth * scale);
-      const height = Math.round(img.naturalHeight * scale);
-      addElement('image', { src: url, borderWidth: 0, fill: '#111827', width, height });
+      const startWidth = img.naturalWidth;
+      const startHeight = img.naturalHeight;
+      addElement('image', {
+        src: url,
+        borderWidth: 0,
+        fill: '#111827',
+        width: startWidth,
+        height: startHeight,
+      });
       setLeftPanelTab('layers');
     };
     img.onerror = () => {
@@ -397,36 +391,6 @@ export default function StudioBuilder() {
       };
     });
     setSelectedIds(duplicated.map((element) => element.id));
-  };
-
-  const handleAlign = (mode: 'left' | 'center' | 'right') => {
-    if (selectedElements.length === 0) return;
-    if (alignTarget === 'selection' && selectedElements.length < 2) return;
-    const minX = Math.min(...selectedElements.map((item) => item.x));
-    const maxX = Math.max(...selectedElements.map((item) => item.x + item.width));
-    const targetX = mode === 'left' ? minX : mode === 'right' ? maxX : (minX + maxX) / 2;
-    setLayout((prev) => {
-      const current = prev ?? initialLayout;
-      return {
-        ...current,
-        elements: current.elements.map((element) => {
-          if (!selectedIds.includes(element.id)) return element;
-          if (alignTarget === 'stage') {
-            if (mode === 'center') {
-              return { ...element, x: canvasSize.width / 2 - element.width / 2 };
-            }
-            if (mode === 'left') {
-              return { ...element, x: 0 };
-            }
-            return { ...element, x: canvasSize.width - element.width };
-          }
-          if (mode === 'center') {
-            return { ...element, x: targetX - element.width / 2 };
-          }
-          return { ...element, x: mode === 'left' ? minX : targetX - element.width };
-        }),
-      };
-    });
   };
 
   const handleFit = () => {
@@ -668,55 +632,6 @@ export default function StudioBuilder() {
               </button>
             </div>
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900 px-2 py-1 text-[11px] text-zinc-400">
-                <span>Align to:</span>
-                <button
-                  type="button"
-                  onClick={() => setAlignTarget('selection')}
-                  className={`rounded-full px-2 py-0.5 ${
-                    alignTarget === 'selection'
-                      ? 'bg-sky-500/30 text-white'
-                      : 'text-zinc-400 hover:text-white'
-                  }`}
-                >
-                  Selection
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAlignTarget('stage')}
-                  className={`rounded-full px-2 py-0.5 ${
-                    alignTarget === 'stage'
-                      ? 'bg-sky-500/30 text-white'
-                      : 'text-zinc-400 hover:text-white'
-                  }`}
-                >
-                  Stage
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={() => handleAlign('left')}
-                className="flex items-center gap-1 rounded-md border border-zinc-800 bg-zinc-850 px-2 py-1 text-[11px] text-zinc-300 hover:text-white"
-              >
-                <AlignLeft className="h-3 w-3" />
-                Left
-              </button>
-              <button
-                type="button"
-                onClick={() => handleAlign('center')}
-                className="flex items-center gap-1 rounded-md border border-zinc-800 bg-zinc-850 px-2 py-1 text-[11px] text-zinc-300 hover:text-white"
-              >
-                <AlignCenter className="h-3 w-3" />
-                Center
-              </button>
-              <button
-                type="button"
-                onClick={() => handleAlign('right')}
-                className="flex items-center gap-1 rounded-md border border-zinc-800 bg-zinc-850 px-2 py-1 text-[11px] text-zinc-300 hover:text-white"
-              >
-                <AlignRight className="h-3 w-3" />
-                Right
-              </button>
               <div className="flex items-center gap-2">
                 <button
                   type="button"

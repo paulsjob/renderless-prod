@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { AlignCenter, AlignLeft, AlignRight } from 'lucide-react';
 import type { Element as LayoutElement, Layout } from '../types';
+
+const canvasSize = { width: 1920, height: 1080 };
 
 const dataPaths = [
   'game.score.home',
@@ -29,14 +31,26 @@ export const CanvasSidebar = ({
   const primarySelection = elements.find((element) => element.id === selectedIds[0]);
   const hasSelection = selectedIds.length > 0;
   const isMixedSelection = selectedIds.length > 1;
+  const [alignTarget, setAlignTarget] = useState<'selection' | 'stage'>('selection');
 
   const alignSelected = (mode: 'left' | 'center' | 'right') => {
-    if (selectedIds.length < 2) return;
     const selected = elements.filter((element) => selectedIds.includes(element.id));
+    if (selected.length === 0) return;
+    if (alignTarget === 'selection' && selected.length < 2) return;
     const minX = Math.min(...selected.map((item) => item.x));
     const maxX = Math.max(...selected.map((item) => item.x + item.width));
     const targetX = mode === 'left' ? minX : mode === 'right' ? maxX : (minX + maxX) / 2;
     selected.forEach((element) => {
+      if (alignTarget === 'stage') {
+        if (mode === 'center') {
+          onUpdateElement(element.id, { x: canvasSize.width / 2 - element.width / 2 });
+        } else if (mode === 'left') {
+          onUpdateElement(element.id, { x: 0 });
+        } else {
+          onUpdateElement(element.id, { x: canvasSize.width - element.width });
+        }
+        return;
+      }
       if (mode === 'center') {
         onUpdateElement(element.id, { x: targetX - element.width / 2 });
       } else if (mode === 'left') {
@@ -265,6 +279,30 @@ export const CanvasSidebar = ({
 
       <div className="rounded-lg border border-[#1f2636] bg-[#141a28] p-4">
         <h3 className="text-xs font-semibold uppercase text-zinc-400">Alignment</h3>
+        <div className="mt-3 flex w-full rounded-full border border-[#2a3346] bg-[#0f1420] p-1 text-[11px] text-zinc-400">
+          <button
+            type="button"
+            onClick={() => setAlignTarget('selection')}
+            className={`flex-1 rounded-full px-2 py-1 ${
+              alignTarget === 'selection'
+                ? 'bg-sky-500/30 text-white'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            Selection
+          </button>
+          <button
+            type="button"
+            onClick={() => setAlignTarget('stage')}
+            className={`flex-1 rounded-full px-2 py-1 ${
+              alignTarget === 'stage'
+                ? 'bg-sky-500/30 text-white'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            Stage
+          </button>
+        </div>
         <div className="mt-3 flex gap-2 text-xs">
           <button
             type="button"
@@ -291,9 +329,11 @@ export const CanvasSidebar = ({
             Right
           </button>
         </div>
-        {selectedIds.length > 1 ? (
+        {selectedIds.length > 1 || alignTarget === 'stage' ? (
           <p className="mt-2 text-[11px] text-zinc-500">
-            Align {selectedIds.length} selected layers.
+            {alignTarget === 'stage'
+              ? 'Align selected layers to the stage.'
+              : `Align ${selectedIds.length} selected layers.`}
           </p>
         ) : (
           <p className="mt-2 text-[11px] text-zinc-500">Select multiple layers to align.</p>
