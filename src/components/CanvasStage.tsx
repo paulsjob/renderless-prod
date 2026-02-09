@@ -73,7 +73,7 @@ export const CanvasStage = ({
   const applySnap = (value: number, gridSize: number) =>
     Math.round(value / gridSize) * gridSize;
 
-  const handleMouseDown = (event: React.MouseEvent, id?: string) => {
+  const handlePointerDown = (event: React.PointerEvent, id?: string) => {
     event.stopPropagation();
     const targetId = id ?? null;
     if (!targetId) {
@@ -108,7 +108,7 @@ export const CanvasStage = ({
   };
 
   useEffect(() => {
-    const handleMouseMove = (event: MouseEvent) => {
+    const handlePointerMove = (event: PointerEvent) => {
       const dragState = dragStateRef.current;
       if (!dragState) return;
       const dx = event.clientX - dragState.startX;
@@ -181,7 +181,7 @@ export const CanvasStage = ({
       }
     };
 
-    const handleMouseUp = () => {
+    const handlePointerUp = () => {
       if (dragStateRef.current) {
         dragStateRef.current = null;
         setSnapGuides({
@@ -195,20 +195,36 @@ export const CanvasStage = ({
       }
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
     };
   }, [layout, onLayoutChange, selectedElements, snapEnabled]);
 
   return (
     <div
       className="relative h-full w-full select-none"
-      onMouseDown={(event) => handleMouseDown(event)}
+      onPointerDown={(event) => handlePointerDown(event)}
       role="presentation"
     >
+      {showGrid && (
+        <div
+          className="pointer-events-none absolute inset-0 z-50"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle, rgba(148,163,184,0.35) 1px, transparent 1px)',
+            backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
+          }}
+        />
+      )}
+      {showSafeZones && (
+        <>
+          <div className="pointer-events-none absolute left-1/2 top-1/2 z-50 h-[90%] w-[90%] -translate-x-1/2 -translate-y-1/2 border border-green-400/70" />
+          <div className="pointer-events-none absolute left-1/2 top-1/2 z-50 h-[80%] w-[80%] -translate-x-1/2 -translate-y-1/2 border border-yellow-400/70" />
+        </>
+      )}
       {snapGuides.centerX && (
         <div className="absolute left-1/2 top-0 h-full w-px bg-cyan-400/80" />
       )}
@@ -234,7 +250,7 @@ export const CanvasStage = ({
         return (
           <div
             key={element.id}
-            onMouseDown={(event) => handleMouseDown(event, element.id)}
+            onPointerDown={(event) => handlePointerDown(event, element.id)}
             className="absolute cursor-move"
             style={{
               left: element.x,
@@ -259,7 +275,7 @@ export const CanvasStage = ({
                 <img
                   src={element.src}
                   alt={element.name}
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-contain"
                 />
               ) : null}
               {element.type !== 'text' && (element.type !== 'image' || !element.src) && element.name}
