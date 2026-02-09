@@ -119,6 +119,8 @@ export default function StudioBuilder() {
   const [selectedIds, setSelectedIds] = useState<string[]>(['headline']);
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [showRulers, setShowRulers] = useState(true);
+  const [showGrid, setShowGrid] = useState(false);
+  const [showSafeZones, setShowSafeZones] = useState(false);
   const [canvasScale, setCanvasScale] = useState(0.55);
   const [dragLayerId, setDragLayerId] = useState<string | null>(null);
   const [dropLayerId, setDropLayerId] = useState<string | null>(null);
@@ -132,6 +134,7 @@ export default function StudioBuilder() {
 
   const activeLayout = layout ?? initialLayout;
   const elements = activeLayout.elements;
+  const reversedElements = useMemo(() => [...elements].reverse(), [elements]);
   const selectedElements = useMemo(
     () => elements.filter((element) => selectedIds.includes(element.id)),
     [elements, selectedIds],
@@ -285,11 +288,11 @@ export default function StudioBuilder() {
     }
   };
 
-  const handleLayerDrop = (event: React.DragEvent, dropId: string) => {
+  const handleLayerDrop = (event: React.DragEvent, dropId: string, listIndex: number) => {
     event.preventDefault();
     if (!dragLayerId || dragLayerId === dropId) return;
     const sourceIndex = elements.findIndex((item) => item.id === dragLayerId);
-    const targetIndex = elements.findIndex((item) => item.id === dropId);
+    const targetIndex = elements.length - 1 - listIndex;
     if (sourceIndex === -1 || targetIndex === -1) return;
     const next = [...elements];
     const [moved] = next.splice(sourceIndex, 1);
@@ -439,7 +442,7 @@ export default function StudioBuilder() {
                   Layer Stack
                 </h2>
                 <div className="mt-4 space-y-2">
-                  {elements.map((layer) => {
+                  {reversedElements.map((layer, listIndex) => {
                     const isSelected = selectedIds.includes(layer.id);
                     const isDragging = dragLayerId === layer.id;
                     const isDropTarget = dropLayerId === layer.id && dragLayerId !== layer.id;
@@ -452,7 +455,7 @@ export default function StudioBuilder() {
                         }}
                         onDragEnd={handleLayerDragEnd}
                         onDragOver={(event) => handleLayerDragOver(event, layer.id)}
-                        onDrop={(event) => handleLayerDrop(event, layer.id)}
+                        onDrop={(event) => handleLayerDrop(event, layer.id, listIndex)}
                         className={`relative rounded-lg border px-3 py-2 text-left text-xs transition ${
                           isSelected
                             ? 'border-sky-500 bg-sky-500/10'
@@ -535,6 +538,30 @@ export default function StudioBuilder() {
                 />
                 Snap
               </label>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowGrid((prev) => !prev)}
+                className={`rounded-md border px-2 py-1 text-[11px] ${
+                  showGrid
+                    ? 'border-sky-500 bg-sky-500/20 text-white'
+                    : 'border-zinc-800 bg-zinc-850 text-zinc-300 hover:text-white'
+                }`}
+              >
+                Grid
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowSafeZones((prev) => !prev)}
+                className={`rounded-md border px-2 py-1 text-[11px] ${
+                  showSafeZones
+                    ? 'border-sky-500 bg-sky-500/20 text-white'
+                    : 'border-zinc-800 bg-zinc-850 text-zinc-300 hover:text-white'
+                }`}
+              >
+                Safe Zones
+              </button>
             </div>
             <div className="flex items-center gap-3">
               <button
@@ -640,6 +667,8 @@ export default function StudioBuilder() {
                       layout={activeLayout}
                       selectedIds={selectedIds}
                       snapEnabled={snapEnabled}
+                      showGrid={showGrid}
+                      showSafeZones={showSafeZones}
                       onSelectionChange={setSelectedIds}
                       onLayoutChange={setLayout}
                     />
