@@ -119,6 +119,7 @@ export default function StudioBuilder() {
   const [showGrid, setShowGrid] = useState(false);
   const [showSafeZones, setShowSafeZones] = useState(false);
   const [canvasScale, setCanvasScale] = useState(0.55);
+  const [alignTarget, setAlignTarget] = useState<'selection' | 'stage'>('selection');
   const [dragLayerId, setDragLayerId] = useState<string | null>(null);
   const [dropLayerId, setDropLayerId] = useState<string | null>(null);
   const [leftPanelTab, setLeftPanelTab] = useState<'layers' | 'assets'>('layers');
@@ -236,8 +237,16 @@ export default function StudioBuilder() {
   const addAsset = (url: string) => {
     const img = new Image();
     img.onload = () => {
-      const startWidth = img.naturalWidth;
-      const startHeight = img.naturalHeight;
+      let startWidth = img.naturalWidth;
+      let startHeight = img.naturalHeight;
+      if (startWidth > canvasSize.width || startHeight > canvasSize.height) {
+        const scale = Math.min(
+          canvasSize.width / startWidth,
+          canvasSize.height / startHeight,
+        );
+        startWidth *= scale;
+        startHeight *= scale;
+      }
       addElement('image', {
         src: url,
         borderWidth: 0,
@@ -391,6 +400,48 @@ export default function StudioBuilder() {
       };
     });
     setSelectedIds(duplicated.map((element) => element.id));
+  };
+
+  const distributeSelection = (axis: 'x' | 'y') => {
+    const selected = activeLayout.elements.filter((element) =>
+      selectedIds.includes(element.id),
+    );
+    if (selected.length < 2) return;
+    if (alignTarget === 'selection' && selected.length < 3) return;
+    const sorted = [...selected].sort((a, b) =>
+      axis === 'x' ? a.x - b.x : a.y - b.y,
+    );
+    const spanStart = alignTarget === 'stage' ? 0 : axis === 'x' ? sorted[0].x : sorted[0].y;
+    const spanEnd =
+      alignTarget === 'stage'
+        ? axis === 'x'
+          ? canvasSize.width
+          : canvasSize.height
+        : axis === 'x'
+          ? sorted[sorted.length - 1].x + sorted[sorted.length - 1].width
+          : sorted[sorted.length - 1].y + sorted[sorted.length - 1].height;
+    const totalSize = sorted.reduce(
+      (sum, element) => sum + (axis === 'x' ? element.width : element.height),
+      0,
+    );
+    const gap = (spanEnd - spanStart - totalSize) / (sorted.length - 1);
+    let cursor = spanStart;
+    const positions = new Map<string, number>();
+    sorted.forEach((element) => {
+      positions.set(element.id, cursor);
+      cursor += (axis === 'x' ? element.width : element.height) + gap;
+    });
+    setLayout((prev) => {
+      const current = prev ?? initialLayout;
+      return {
+        ...current,
+        elements: current.elements.map((element) => {
+          const position = positions.get(element.id);
+          if (position === undefined) return element;
+          return axis === 'x' ? { ...element, x: position } : { ...element, y: position };
+        }),
+      };
+    });
   };
 
   const handleFit = () => {
@@ -670,7 +721,7 @@ export default function StudioBuilder() {
               >
                 {showRulers && (
                   <div
-                    className="absolute left-[24px] top-0 h-[24px] w-full border-b border-zinc-800 bg-zinc-900"
+                    className="absolute left-[24px] top-0 h-[24px] w-full select-none border-b border-zinc-800 bg-zinc-900"
                     style={{ width: canvasSize.width * canvasScale }}
                   >
                     <div className="flex h-full w-full">
@@ -687,7 +738,7 @@ export default function StudioBuilder() {
                 )}
                 {showRulers && (
                   <div
-                    className="absolute left-0 top-[24px] h-full w-[24px] border-r border-zinc-800 bg-zinc-900"
+                    className="absolute left-0 top-[24px] h-full w-[24px] select-none border-r border-zinc-800 bg-zinc-900"
                     style={{ height: canvasSize.height * canvasScale }}
                   >
                     <div className="flex h-full w-full flex-col">
@@ -720,6 +771,7 @@ export default function StudioBuilder() {
                       snapEnabled={snapEnabled}
                       showGrid={showGrid}
                       showSafeZones={showSafeZones}
+                      scale={canvasScale}
                       onSelectionChange={setSelectedIds}
                       onLayoutChange={setLayout}
                     />
@@ -736,9 +788,12 @@ export default function StudioBuilder() {
           <CanvasSidebar
             layout={activeLayout}
             selectedIds={selectedIds}
+            alignTarget={alignTarget}
+            onAlignTargetChange={setAlignTarget}
             onUpdateElement={updateElement}
             onDuplicate={handleDuplicate}
             onDelete={handleDelete}
+            onDistribute={distributeSelection}
           />
         </div>
       </aside>

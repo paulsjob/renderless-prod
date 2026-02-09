@@ -1,5 +1,11 @@
-import React, { useState } from 'react';
-import { AlignCenter, AlignLeft, AlignRight } from 'lucide-react';
+import React from 'react';
+import {
+  AlignCenter,
+  AlignHorizontalDistributeCenter,
+  AlignLeft,
+  AlignRight,
+  AlignVerticalDistributeCenter,
+} from 'lucide-react';
 import type { Element as LayoutElement, Layout } from '../types';
 
 const canvasSize = { width: 1920, height: 1080 };
@@ -15,24 +21,28 @@ const dataPaths = [
 type CanvasSidebarProps = {
   layout: Layout;
   selectedIds: string[];
+  alignTarget: 'selection' | 'stage';
+  onAlignTargetChange: (target: 'selection' | 'stage') => void;
   onUpdateElement: (id: string, updates: Partial<LayoutElement>) => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  onDistribute: (axis: 'x' | 'y') => void;
 };
 
 export const CanvasSidebar = ({
   layout,
   selectedIds,
+  alignTarget,
+  onAlignTargetChange,
   onUpdateElement,
   onDuplicate,
   onDelete,
+  onDistribute,
 }: CanvasSidebarProps) => {
   const elements = layout.elements;
   const primarySelection = elements.find((element) => element.id === selectedIds[0]);
   const hasSelection = selectedIds.length > 0;
   const isMixedSelection = selectedIds.length > 1;
-  const [alignTarget, setAlignTarget] = useState<'selection' | 'stage'>('selection');
-
   const alignSelected = (mode: 'left' | 'center' | 'right') => {
     const selected = elements.filter((element) => selectedIds.includes(element.id));
     if (selected.length === 0) return;
@@ -282,7 +292,7 @@ export const CanvasSidebar = ({
         <div className="mt-3 flex w-full rounded-full border border-[#2a3346] bg-[#0f1420] p-1 text-[11px] text-zinc-400">
           <button
             type="button"
-            onClick={() => setAlignTarget('selection')}
+            onClick={() => onAlignTargetChange('selection')}
             className={`flex-1 rounded-full px-2 py-1 ${
               alignTarget === 'selection'
                 ? 'bg-sky-500/30 text-white'
@@ -293,7 +303,7 @@ export const CanvasSidebar = ({
           </button>
           <button
             type="button"
-            onClick={() => setAlignTarget('stage')}
+            onClick={() => onAlignTargetChange('stage')}
             className={`flex-1 rounded-full px-2 py-1 ${
               alignTarget === 'stage'
                 ? 'bg-sky-500/30 text-white'
@@ -327,6 +337,24 @@ export const CanvasSidebar = ({
           >
             <AlignRight className="h-3 w-3" />
             Right
+          </button>
+        </div>
+        <div className="mt-3 flex gap-2 text-xs">
+          <button
+            type="button"
+            onClick={() => onDistribute('x')}
+            className="flex items-center gap-1 rounded-md border border-[#2a3346] bg-[#0f1420] px-2 py-1 text-zinc-300 hover:text-white"
+          >
+            <AlignHorizontalDistributeCenter className="h-3 w-3" />
+            Horiz
+          </button>
+          <button
+            type="button"
+            onClick={() => onDistribute('y')}
+            className="flex items-center gap-1 rounded-md border border-[#2a3346] bg-[#0f1420] px-2 py-1 text-zinc-300 hover:text-white"
+          >
+            <AlignVerticalDistributeCenter className="h-3 w-3" />
+            Vert
           </button>
         </div>
         {selectedIds.length > 1 || alignTarget === 'stage' ? (

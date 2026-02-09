@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import { Trash2 } from 'lucide-react';
 
 type AssetLibraryProps = {
   onAssetSelect: (url: string) => void;
@@ -88,6 +89,21 @@ export const AssetLibrary = ({ onAssetSelect }: AssetLibraryProps) => {
     event.target.value = '';
   };
 
+  const handleDelete = async (assetName: string) => {
+    if (!supabaseClient) {
+      setStatus('Supabase is not configured for deletes.');
+      return;
+    }
+    setStatus('Removing asset...');
+    const { error } = await supabaseClient.storage.from('assets').remove([assetName]);
+    if (error) {
+      setStatus(error.message);
+      return;
+    }
+    setStatus('Asset removed.');
+    await fetchAssets();
+  };
+
   return (
     <div className="flex flex-1 flex-col gap-4">
       <div
@@ -132,8 +148,18 @@ export const AssetLibrary = ({ onAssetSelect }: AssetLibraryProps) => {
             className="group flex flex-col overflow-hidden rounded-lg border border-[#1f2636] bg-[#141a28] text-left hover:border-sky-500"
             onClick={() => onAssetSelect(asset.url)}
           >
-            <div className="h-24 w-full overflow-hidden bg-zinc-900">
+            <div className="relative h-24 w-full overflow-hidden bg-zinc-900">
               <img src={asset.url} alt={asset.name} className="h-full w-full object-cover" />
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void handleDelete(asset.name);
+                }}
+                className="absolute right-2 top-2 rounded-md bg-black/60 p-1 text-zinc-200 opacity-0 transition group-hover:opacity-100 hover:text-white"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
             </div>
             <div className="px-2 py-2 text-[11px] text-zinc-400 group-hover:text-white">
               {asset.name}

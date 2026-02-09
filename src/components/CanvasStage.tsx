@@ -23,6 +23,7 @@ type CanvasStageProps = {
   snapEnabled: boolean;
   showGrid?: boolean;
   showSafeZones?: boolean;
+  scale: number;
   onSelectionChange: (ids: string[]) => void;
   onLayoutChange: (layout: Layout) => void;
 };
@@ -38,6 +39,7 @@ export const CanvasStage = ({
   snapEnabled,
   showGrid = false,
   showSafeZones = false,
+  scale,
   onSelectionChange,
   onLayoutChange,
 }: CanvasStageProps) => {
@@ -123,8 +125,9 @@ export const CanvasStage = ({
     const handlePointerMove = (event: PointerEvent) => {
       const dragState = dragStateRef.current;
       if (!dragState) return;
-      const dx = event.clientX - dragState.startX;
-      const dy = event.clientY - dragState.startY;
+      const safeScale = Math.max(0.01, scale);
+      const dx = (event.clientX - dragState.startX) / safeScale;
+      const dy = (event.clientY - dragState.startY) / safeScale;
       let nextDx = dx;
       let nextDy = dy;
 
@@ -213,7 +216,7 @@ export const CanvasStage = ({
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', handlePointerUp);
     };
-  }, [layout, onLayoutChange, selectedElements, snapEnabled]);
+  }, [layout, onLayoutChange, scale, selectedElements, snapEnabled]);
 
   return (
     <div
@@ -307,7 +310,7 @@ export const CanvasStage = ({
       })}
       {showGrid && (
         <div
-          className="pointer-events-none absolute left-0 top-0 z-50 h-full w-full"
+          className="grid-overlay pointer-events-none absolute left-0 top-0 z-50 h-full w-full"
           style={{
             backgroundImage:
               'linear-gradient(to right, rgba(148,163,184,0.25) 1px, transparent 1px), linear-gradient(to bottom, rgba(148,163,184,0.25) 1px, transparent 1px)',
