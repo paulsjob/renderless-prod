@@ -14,14 +14,16 @@ type CanvasSidebarProps = {
   layout: Layout;
   selectedIds: string[];
   onUpdateElement: (id: string, updates: Partial<LayoutElement>) => void;
-  onSelectionChange: (ids: string[]) => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
 };
 
 export const CanvasSidebar = ({
   layout,
   selectedIds,
   onUpdateElement,
-  onSelectionChange,
+  onDuplicate,
+  onDelete,
 }: CanvasSidebarProps) => {
   const elements = layout.elements;
   const primarySelection = elements.find((element) => element.id === selectedIds[0]);
@@ -58,6 +60,24 @@ export const CanvasSidebar = ({
       <div>
         <h2 className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">Inspector</h2>
         <p className="mt-2 text-xs text-zinc-500">Edit selection attributes and data bindings.</p>
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            onClick={onDuplicate}
+            disabled={!hasSelection}
+            className="flex-1 rounded-md border border-[#2a3346] bg-[#0f1420] px-2 py-1 text-[11px] text-zinc-300 hover:text-white disabled:cursor-not-allowed disabled:text-zinc-600"
+          >
+            Duplicate
+          </button>
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={!hasSelection}
+            className="flex-1 rounded-md border border-[#2a3346] bg-[#0f1420] px-2 py-1 text-[11px] text-zinc-300 hover:text-white disabled:cursor-not-allowed disabled:text-zinc-600"
+          >
+            Delete
+          </button>
+        </div>
       </div>
 
       <div className="rounded-lg border border-[#1f2636] bg-[#141a28] p-4">
@@ -285,15 +305,6 @@ export const CanvasSidebar = ({
           <span>Selected</span>
           <span>{selectedIds.length ? selectedIds.join(', ') : 'None'}</span>
         </div>
-        {selectedIds.length > 0 && (
-          <button
-            type="button"
-            onClick={() => onSelectionChange([])}
-            className="mt-2 w-full rounded-md border border-[#2a3346] bg-[#0f1420] px-2 py-1 text-xs text-zinc-300 hover:text-white"
-          >
-            Clear Selection
-          </button>
-        )}
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlignCenter,
   AlignLeft,
@@ -125,6 +125,8 @@ export default function StudioBuilder() {
   const [dragLayerId, setDragLayerId] = useState<string | null>(null);
   const [dropLayerId, setDropLayerId] = useState<string | null>(null);
   const [leftPanelTab, setLeftPanelTab] = useState<'layers' | 'assets'>('layers');
+  const [alignTarget, setAlignTarget] = useState<'selection' | 'stage'>('selection');
+  const canvasViewportRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!layout) {
@@ -370,8 +372,36 @@ export default function StudioBuilder() {
     setSelectedIds([]);
   };
 
+  const handleDuplicate = () => {
+    if (selectedIds.length === 0) return;
+    const sourceElements = activeLayout.elements.filter((element) =>
+      selectedIds.includes(element.id),
+    );
+    if (sourceElements.length === 0) return;
+    const timestamp = Date.now();
+    let counter = 0;
+    const duplicated = sourceElements.map((element) => {
+      counter += 1;
+      return {
+        ...element,
+        id: `${element.id}-copy-${timestamp}-${counter}`,
+        x: element.x + 20,
+        y: element.y + 20,
+      };
+    });
+    setLayout((prev) => {
+      const current = prev ?? initialLayout;
+      return {
+        ...current,
+        elements: [...current.elements, ...duplicated],
+      };
+    });
+    setSelectedIds(duplicated.map((element) => element.id));
+  };
+
   const handleAlign = (mode: 'left' | 'center' | 'right') => {
-    if (selectedElements.length < 2) return;
+    if (selectedElements.length === 0) return;
+    if (alignTarget === 'selection' && selectedElements.length < 2) return;
     const minX = Math.min(...selectedElements.map((item) => item.x));
     const maxX = Math.max(...selectedElements.map((item) => item.x + item.width));
     const targetX = mode === 'left' ? minX : mode === 'right' ? maxX : (minX + maxX) / 2;
@@ -381,6 +411,15 @@ export default function StudioBuilder() {
         ...current,
         elements: current.elements.map((element) => {
           if (!selectedIds.includes(element.id)) return element;
+          if (alignTarget === 'stage') {
+            if (mode === 'center') {
+              return { ...element, x: canvasSize.width / 2 - element.width / 2 };
+            }
+            if (mode === 'left') {
+              return { ...element, x: 0 };
+            }
+            return { ...element, x: canvasSize.width - element.width };
+          }
           if (mode === 'center') {
             return { ...element, x: targetX - element.width / 2 };
           }
@@ -388,6 +427,14 @@ export default function StudioBuilder() {
         }),
       };
     });
+  };
+
+  const handleFit = () => {
+    const viewport = canvasViewportRef.current;
+    if (!viewport) return;
+    const { width, height } = viewport.getBoundingClientRect();
+    const scale = Math.min(width / canvasSize.width, height / canvasSize.height) * 0.9;
+    setCanvasScale(Math.max(0.1, Math.min(1, scale)));
   };
 
   useEffect(() => {
@@ -470,6 +517,15 @@ export default function StudioBuilder() {
                 <h2 className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
                   Layer Stack
                 </h2>
+                {selectedIds.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedIds([])}
+                    className="mt-3 w-full rounded-md border border-[#2a3346] bg-[#0f1420] px-2 py-1 text-[11px] text-zinc-300 hover:text-white"
+                  >
+                    Clear Selection
+                  </button>
+                )}
                 <div className="mt-4 space-y-2">
                   {reversedElements.map((layer, listIndex) => {
                     const isSelected = selectedIds.includes(layer.id);
@@ -612,6 +668,31 @@ export default function StudioBuilder() {
               </button>
             </div>
             <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900 px-2 py-1 text-[11px] text-zinc-400">
+                <span>Align to:</span>
+                <button
+                  type="button"
+                  onClick={() => setAlignTarget('selection')}
+                  className={`rounded-full px-2 py-0.5 ${
+                    alignTarget === 'selection'
+                      ? 'bg-sky-500/30 text-white'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  Selection
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAlignTarget('stage')}
+                  className={`rounded-full px-2 py-0.5 ${
+                    alignTarget === 'stage'
+                      ? 'bg-sky-500/30 text-white'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  Stage
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={() => handleAlign('left')}
@@ -652,11 +733,18 @@ export default function StudioBuilder() {
                 >
                   +
                 </button>
+                <button
+                  type="button"
+                  onClick={handleFit}
+                  className="rounded-md border border-zinc-800 bg-zinc-850 px-2 py-1 text-[11px] text-zinc-300 hover:text-white"
+                >
+                  Fit
+                </button>
               </div>
             </div>
           </div>
 
-          <div className="flex-1 p-6">
+          <div className="flex-1 p-6" ref={canvasViewportRef}>
             <div className="relative h-full w-full overflow-auto rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
               <div
                 className="relative"
@@ -734,7 +822,8 @@ export default function StudioBuilder() {
             layout={activeLayout}
             selectedIds={selectedIds}
             onUpdateElement={updateElement}
-            onSelectionChange={setSelectedIds}
+            onDuplicate={handleDuplicate}
+            onDelete={handleDelete}
           />
         </div>
       </aside>

@@ -30,6 +30,7 @@ type CanvasStageProps = {
 const CANVAS_WIDTH = 1920;
 const CANVAS_HEIGHT = 1080;
 const GRID_SIZE = 10;
+const GRID_DISPLAY_SIZE = 100;
 
 export const CanvasStage = ({
   layout,
@@ -207,23 +208,34 @@ export const CanvasStage = ({
     <div
       className="relative h-full w-full select-none"
       onPointerDown={(event) => handlePointerDown(event)}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) {
+          onSelectionChange([]);
+        }
+      }}
       role="presentation"
     >
       {showGrid && (
         <div
-          className="pointer-events-none absolute inset-0 z-50"
+          className="pointer-events-none absolute left-0 top-0 h-full w-full"
           style={{
             backgroundImage:
-              'radial-gradient(circle, rgba(148,163,184,0.35) 1px, transparent 1px)',
-            backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
+              'linear-gradient(to right, rgba(148,163,184,0.25) 1px, transparent 1px), linear-gradient(to bottom, rgba(148,163,184,0.25) 1px, transparent 1px)',
+            backgroundSize: `${GRID_DISPLAY_SIZE}px ${GRID_DISPLAY_SIZE}px`,
           }}
         />
       )}
       {showSafeZones && (
-        <>
-          <div className="pointer-events-none absolute left-1/2 top-1/2 z-50 h-[90%] w-[90%] -translate-x-1/2 -translate-y-1/2 border border-green-400/70" />
-          <div className="pointer-events-none absolute left-1/2 top-1/2 z-50 h-[80%] w-[80%] -translate-x-1/2 -translate-y-1/2 border border-yellow-400/70" />
-        </>
+        <div className="pointer-events-none absolute left-0 top-0 flex h-full w-full items-center justify-center">
+          <div
+            className="absolute border border-green-400/70"
+            style={{ width: '90%', height: '90%' }}
+          />
+          <div
+            className="absolute border border-yellow-400/70"
+            style={{ width: '80%', height: '80%' }}
+          />
+        </div>
       )}
       {snapGuides.centerX && (
         <div className="absolute left-1/2 top-0 h-full w-px bg-cyan-400/80" />
