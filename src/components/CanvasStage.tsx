@@ -205,7 +205,7 @@ export const CanvasStage = ({
 
   return (
     <div
-      className="relative h-full w-full"
+      className="relative h-full w-full select-none"
       onMouseDown={(event) => handleMouseDown(event)}
       role="presentation"
     >
