@@ -13,12 +13,10 @@ import {
 import { AssetLibrary } from './AssetLibrary';
 import { CanvasSidebar } from './CanvasSidebar';
 import { CanvasStage } from './CanvasStage';
-import { BuildBadge } from './BuildBadge';
 import { useBroadcastController } from '../hooks/useBroadcastController';
 import type { Element as LayoutElement, Layout } from '../types';
 
 const canvasSize = { width: 1920, height: 1080 };
-const rulerSize = 24;
 
 const buildingBlocks = [
   { id: 'text', label: 'Text', icon: Type },
@@ -116,7 +114,6 @@ export default function StudioBuilder() {
   const { layout, setLayout, updateElement: controllerUpdateElement } = useBroadcastController();
   const [selectedIds, setSelectedIds] = useState<string[]>(['headline']);
   const [snapEnabled, setSnapEnabled] = useState(true);
-  const [showRulers, setShowRulers] = useState(true);
   const [showGrid, setShowGrid] = useState(false);
   const [showSafeZones, setShowSafeZones] = useState(false);
   const [canvasScale, setCanvasScale] = useState(0.55);
@@ -405,7 +402,7 @@ export default function StudioBuilder() {
     const viewport = canvasViewportRef.current;
     if (!viewport) return;
     const { width, height } = viewport.getBoundingClientRect();
-    const scale = Math.min(width / canvasSize.width, height / canvasSize.height) * 0.9;
+    const scale = Math.min(width / canvasSize.width, height / canvasSize.height) * 0.92;
     setCanvasScale(Math.max(0.1, Math.min(1, scale)));
   };
 
@@ -601,14 +598,6 @@ export default function StudioBuilder() {
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
-                  checked={showRulers}
-                  onChange={() => setShowRulers((prev) => !prev)}
-                />
-                Rulers
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
                   checked={snapEnabled}
                   onChange={() => setSnapEnabled((prev) => !prev)}
                 />
@@ -638,7 +627,6 @@ export default function StudioBuilder() {
               >
                 Safe Zones
               </button>
-              <BuildBadge />
             </div>
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
@@ -673,67 +661,28 @@ export default function StudioBuilder() {
               <div
                 className="relative"
                 style={{
-                  width: canvasSize.width * canvasScale + (showRulers ? rulerSize : 0),
-                  height: canvasSize.height * canvasScale + (showRulers ? rulerSize : 0),
+                  width: canvasSize.width * canvasScale,
+                  height: canvasSize.height * canvasScale,
                 }}
               >
-                {showRulers && (
-                  <div
-                    className="absolute left-[24px] top-0 h-[24px] w-full border-b border-zinc-800 bg-zinc-900"
-                    style={{ width: canvasSize.width * canvasScale }}
-                  >
-                    <div className="flex h-full w-full">
-                      {Array.from({ length: canvasSize.width / 100 + 1 }).map((_, index) => (
-                        <div key={`x-${index}`} className="relative flex-1">
-                          <div className="absolute bottom-1 left-0 h-2 w-px bg-zinc-600" />
-                          <span className="absolute bottom-0 left-1 text-[10px] text-zinc-500">
-                            {index * 100}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {showRulers && (
-                  <div
-                    className="absolute left-0 top-[24px] h-full w-[24px] border-r border-zinc-800 bg-zinc-900"
-                    style={{ height: canvasSize.height * canvasScale }}
-                  >
-                    <div className="flex h-full w-full flex-col">
-                      {Array.from({ length: canvasSize.height / 100 + 1 }).map((_, index) => (
-                        <div key={`y-${index}`} className="relative flex-1">
-                          <div className="absolute right-1 top-0 h-px w-2 bg-zinc-600" />
-                          <span className="absolute right-1 top-1 text-[10px] text-zinc-500">
-                            {index * 100}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 <div
-                  className="absolute left-[24px] top-[24px] origin-top-left rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl"
+                  className="absolute left-0 top-0 origin-top-left rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl"
                   style={{
-                    width: canvasSize.width * canvasScale,
-                    height: canvasSize.height * canvasScale,
+                    width: canvasSize.width,
+                    height: canvasSize.height,
+                    transform: `scale(${canvasScale})`,
                   }}
                 >
-                  <div
-                    className="relative h-full w-full"
-                    style={{ transform: `scale(${canvasScale})`, transformOrigin: 'top left' }}
-                  >
-                    <CanvasStage
-                      layout={activeLayout}
-                      updateElement={controllerUpdateElement}
-                      selectedIds={selectedIds}
-                      snapEnabled={snapEnabled}
-                      showGrid={showGrid}
-                      showSafeZones={showSafeZones}
-                      onSelectionChange={setSelectedIds}
-                      onLayoutChange={setLayout}
-                    />
-                  </div>
+                  <CanvasStage
+                    layout={activeLayout}
+                    updateElement={controllerUpdateElement}
+                    selectedIds={selectedIds}
+                    snapEnabled={snapEnabled}
+                    showGrid={showGrid}
+                    showSafeZones={showSafeZones}
+                    onSelectionChange={setSelectedIds}
+                    onLayoutChange={setLayout}
+                  />
                 </div>
               </div>
             </div>
