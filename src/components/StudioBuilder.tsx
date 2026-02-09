@@ -624,7 +624,7 @@ export default function StudioBuilder() {
                     : 'border-zinc-800 bg-zinc-850 text-zinc-300 hover:text-white'
                 }`}
               >
-                Grid!
+                Grid
               </button>
               <button
                 type="button"
