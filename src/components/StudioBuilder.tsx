@@ -236,14 +236,21 @@ export default function StudioBuilder() {
   const addAsset = (url: string) => {
     const img = new Image();
     img.onload = () => {
-      const startWidth = img.naturalWidth;
-      const startHeight = img.naturalHeight;
+      const stageW = canvasSize.width;
+      const stageH = canvasSize.height;
+      const imgW = img.naturalWidth;
+      const imgH = img.naturalHeight;
+      const fitScale = Math.min(stageW / imgW, stageH / imgH, 1);
+      const startWidth = Math.round(imgW * fitScale);
+      const startHeight = Math.round(imgH * fitScale);
       addElement('image', {
         src: url,
         borderWidth: 0,
         fill: '#111827',
         width: startWidth,
         height: startHeight,
+        x: (stageW - startWidth) / 2,
+        y: (stageH - startHeight) / 2,
       });
       setLeftPanelTab('layers');
     };
