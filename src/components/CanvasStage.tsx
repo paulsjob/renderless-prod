@@ -19,12 +19,13 @@ type SnapGuides = {
 
 type CanvasStageProps = {
   layout: Layout;
-  selectedIds: string[];
-  snapEnabled: boolean;
+  selectedIds?: string[];
+  scale?: number;
+  snapEnabled?: boolean;
   showGrid?: boolean;
   showSafeZones?: boolean;
-  onSelectionChange: (ids: string[]) => void;
-  onLayoutChange: (layout: Layout) => void;
+  onSelectionChange?: (ids: string[]) => void;
+  onLayoutChange?: (layout: Layout) => void;
 };
 
 const CANVAS_WIDTH = 1920;
@@ -34,12 +35,13 @@ const GRID_DISPLAY_SIZE = 100;
 
 export const CanvasStage = ({
   layout,
-  selectedIds,
-  snapEnabled,
+  selectedIds = [],
+  scale = 1,
+  snapEnabled = false,
   showGrid = false,
   showSafeZones = false,
-  onSelectionChange,
-  onLayoutChange,
+  onSelectionChange = () => {},
+  onLayoutChange = () => {},
 }: CanvasStageProps) => {
   const dragStateRef = useRef<DragState | null>(null);
   const [snapGuides, setSnapGuides] = useState<SnapGuides>({
@@ -123,8 +125,8 @@ export const CanvasStage = ({
     const handlePointerMove = (event: PointerEvent) => {
       const dragState = dragStateRef.current;
       if (!dragState) return;
-      const dx = event.clientX - dragState.startX;
-      const dy = event.clientY - dragState.startY;
+      const dx = (event.clientX - dragState.startX) / scale;
+      const dy = (event.clientY - dragState.startY) / scale;
       let nextDx = dx;
       let nextDy = dy;
 
@@ -213,7 +215,7 @@ export const CanvasStage = ({
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', handlePointerUp);
     };
-  }, [layout, onLayoutChange, selectedElements, snapEnabled]);
+  }, [layout, onLayoutChange, scale, selectedElements, snapEnabled]);
 
   return (
     <div
