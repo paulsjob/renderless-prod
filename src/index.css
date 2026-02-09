@@ -2,16 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  background-color: #000;
-  color: #fff;
-  overflow: hidden;
-}
-
 body {
-  width: 100vw;
-  height: 100vh;
-  overflow: hidden;
-  margin: 0;
-  padding: 0;
+  @apply bg-zinc-950 text-white overflow-hidden;
 }
