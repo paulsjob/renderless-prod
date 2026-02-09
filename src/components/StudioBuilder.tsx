@@ -241,6 +241,23 @@ export default function StudioBuilder() {
     setSelectedIds([id]);
   };
 
+  const addAsset = (url: string) => {
+    const img = new Image();
+    img.onload = () => {
+      const maxDimension = 1000;
+      const scale = Math.min(1, maxDimension / Math.max(img.naturalWidth, img.naturalHeight));
+      const width = Math.round(img.naturalWidth * scale);
+      const height = Math.round(img.naturalHeight * scale);
+      addElement('image', { src: url, borderWidth: 0, fill: '#111827', width, height });
+      setLeftPanelTab('layers');
+    };
+    img.onerror = () => {
+      addElement('image', { src: url, borderWidth: 0, fill: '#111827' });
+      setLeftPanelTab('layers');
+    };
+    img.src = url;
+  };
+
   const handleBuildingBlockClick = (type: LayoutElement['type']) => {
     if (type === 'image') {
       setLeftPanelTab('assets');
@@ -262,8 +279,7 @@ export default function StudioBuilder() {
   };
 
   const handleAssetSelect = (url: string) => {
-    addElement('image', { src: url, borderWidth: 0, fill: '#111827' });
-    setLeftPanelTab('layers');
+    addAsset(url);
   };
 
   const handleLayerSelect = (id: string, event: React.MouseEvent) => {
@@ -314,6 +330,19 @@ export default function StudioBuilder() {
   const handleLayerDragEnd = () => {
     setDragLayerId(null);
     setDropLayerId(null);
+  };
+
+  const handleLayerMove = (id: string, direction: 'up' | 'down') => {
+    const currentIndex = elements.findIndex((item) => item.id === id);
+    if (currentIndex === -1) return;
+    const targetIndex = direction === 'up' ? currentIndex + 1 : currentIndex - 1;
+    if (targetIndex < 0 || targetIndex >= elements.length) return;
+    const next = [...elements];
+    [next[currentIndex], next[targetIndex]] = [next[targetIndex], next[currentIndex]];
+    setLayout((prev) => {
+      const current = prev ?? initialLayout;
+      return { ...current, elements: next };
+    });
   };
 
   const handleNudge = (dx: number, dy: number) => {
@@ -446,6 +475,9 @@ export default function StudioBuilder() {
                     const isSelected = selectedIds.includes(layer.id);
                     const isDragging = dragLayerId === layer.id;
                     const isDropTarget = dropLayerId === layer.id && dragLayerId !== layer.id;
+                    const currentIndex = elements.findIndex((item) => item.id === layer.id);
+                    const canMoveUp = currentIndex < elements.length - 1;
+                    const canMoveDown = currentIndex > 0;
                     return (
                       <div
                         key={layer.id}
@@ -475,6 +507,22 @@ export default function StudioBuilder() {
                             <span className="font-semibold">{layer.name}</span>
                           </button>
                           <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleLayerMove(layer.id, 'up')}
+                              disabled={!canMoveUp}
+                              className="text-zinc-400 hover:text-white disabled:cursor-not-allowed disabled:text-zinc-600"
+                            >
+                              ↑
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleLayerMove(layer.id, 'down')}
+                              disabled={!canMoveDown}
+                              className="text-zinc-400 hover:text-white disabled:cursor-not-allowed disabled:text-zinc-600"
+                            >
+                              ↓
+                            </button>
                             <button
                               type="button"
                               onClick={() =>
