@@ -1,8 +1,9 @@
 import React, { useState, useRef } from 'react';
-import { useBroadcastController } from '../hooks/useBroadcastController';
+import type { Element as ElementType } from '../types';
 
 interface CanvasStageProps {
   layout: any;
+  updateElement: (id: string, patch: Partial<ElementType>) => void;
   selectedIds?: string[];
   scale?: number;
   snapEnabled?: boolean;
@@ -14,6 +15,7 @@ interface CanvasStageProps {
 
 export const CanvasStage: React.FC<CanvasStageProps> = ({
   layout,
+  updateElement,
   selectedIds = [],
   scale = 1,
   snapEnabled = false,
@@ -22,8 +24,6 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
   onSelectionChange = () => {},
   onLayoutChange = () => {},
 }) => {
-  // FIX: Destructure setLayout (which exists) instead of updateElement (which missed)
-  const { setLayout } = useBroadcastController(); 
   const stageRef = useRef<HTMLDivElement>(null);
   
   const [dragState, setDragState] = useState<{
@@ -32,19 +32,6 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
     startY: number;
     initialPositions: Record<string, { x: number; y: number }>;
   } | null>(null);
-
-  // --- LOCAL UPDATE HELPER (Bypasses missing hook function) ---
-  const updateElement = (id: string, updates: any) => {
-    setLayout((prev: any) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        elements: prev.elements.map((el: any) => 
-          el.id === id ? { ...el, ...updates } : el
-        )
-      };
-    });
-  };
 
   // --- MOUSE HANDLERS ---
 
