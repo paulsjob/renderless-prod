@@ -2,8 +2,9 @@ export type Element = {
   id: string;
   type: 'text' | 'image' | 'shape' | 'container';
   name: string;
-  visible: boolean;
   locked: boolean;
+  hidden: boolean;
+  visible: boolean;
   x: number;
   y: number;
   width: number;
