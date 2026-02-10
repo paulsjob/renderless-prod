@@ -75,6 +75,8 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
 
     const startPoint = clientToStage(e.clientX, e.clientY);
 
+    const startPoint = getPointerStageCoords(e);
+
     setDragState({
       pointerId: e.pointerId,
       startX: startPoint.x,
