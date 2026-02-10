@@ -105,17 +105,7 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
     >
-      {/* RULERS (Static & Unselectable) */}
-      <div className="absolute top-0 left-0 w-full h-6 bg-zinc-900 border-b border-zinc-800 z-50 flex select-none text-[10px] text-zinc-500 overflow-hidden pointer-events-none">
-        {Array.from({ length: 20 }).map((_, i) => (
-             <div key={i} className="flex-shrink-0 w-[100px] border-l border-zinc-700 pl-1">{i * 100}</div>
-        ))}
-      </div>
-      <div className="absolute top-6 left-0 w-6 h-full bg-zinc-900 border-r border-zinc-800 z-50 flex flex-col select-none text-[10px] text-zinc-500 overflow-hidden pointer-events-none">
-        {Array.from({ length: 12 }).map((_, i) => (
-             <div key={i} className="flex-shrink-0 h-[100px] border-t border-zinc-700 pt-1">{i * 100}</div>
-        ))}
-      </div>
+      
 
       {/* ZOOM CONTAINER */}
       <div 
