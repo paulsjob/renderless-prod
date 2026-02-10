@@ -18,7 +18,6 @@ import { useBroadcastController } from '../hooks/useBroadcastController';
 import type { Element as LayoutElement, Layout } from '../types';
 
 const canvasSize = { width: 1920, height: 1080 };
-const rulerSize = 24;
 
 const buildingBlocks = [
   { id: 'text', label: 'Text', icon: Type },
@@ -114,21 +113,24 @@ const initialLayout: Layout = {
 
 export default function StudioBuilder() {
   const { layout, setLayout, updateElement: controllerUpdateElement } = useBroadcastController();
+
   const [selectedIds, setSelectedIds] = useState<string[]>(['headline']);
   const [snapEnabled, setSnapEnabled] = useState(true);
+
   const [showRulers, setShowRulers] = useState(true);
   const [showGrid, setShowGrid] = useState(false);
   const [showSafeZones, setShowSafeZones] = useState(false);
+
   const [canvasScale, setCanvasScale] = useState(0.55);
+
   const [dragLayerId, setDragLayerId] = useState<string | null>(null);
   const [dropLayerId, setDropLayerId] = useState<string | null>(null);
   const [leftPanelTab, setLeftPanelTab] = useState<'layers' | 'assets'>('layers');
+
   const canvasViewportRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!layout) {
-      setLayout(initialLayout);
-    }
+    if (!layout) setLayout(initialLayout);
   }, [layout, setLayout]);
 
   const activeLayout = layout ?? initialLayout;
@@ -140,17 +142,12 @@ export default function StudioBuilder() {
       const current = prev ?? initialLayout;
       return {
         ...current,
-        elements: current.elements.map((item) =>
-          item.id === id ? { ...item, ...updates } : item,
-        ),
+        elements: current.elements.map((item) => (item.id === id ? { ...item, ...updates } : item)),
       };
     });
   };
 
-  const addElement = (
-    type: LayoutElement['type'],
-    overrides: Partial<LayoutElement> = {},
-  ) => {
+  const addElement = (type: LayoutElement['type'], overrides: Partial<LayoutElement> = {}) => {
     const id = `${type}-${Date.now()}`;
     const baseDefaults = {
       x: canvasSize.width / 2,
@@ -165,6 +162,7 @@ export default function StudioBuilder() {
       fontSize: undefined,
       dataPath: `static.${type}`,
     };
+
     const defaultsByType: Record<LayoutElement['type'], Partial<LayoutElement>> = {
       text: {
         name: 'Text Layer',
@@ -203,7 +201,9 @@ export default function StudioBuilder() {
         dataPath: 'static.container',
       },
     };
+
     const resolved = { ...baseDefaults, ...defaultsByType[type], ...overrides };
+
     const newElement: LayoutElement = {
       id,
       type,
@@ -227,10 +227,12 @@ export default function StudioBuilder() {
       dataPath: resolved.dataPath,
       maskEnabled: false,
     };
+
     setLayout((prev) => {
       const current = prev ?? initialLayout;
       return { ...current, elements: [...current.elements, newElement] };
     });
+
     setSelectedIds([id]);
   };
 
@@ -244,6 +246,7 @@ export default function StudioBuilder() {
       const fitScale = Math.min(stageW / imgW, stageH / imgH, 1);
       const startWidth = Math.round(imgW * fitScale);
       const startHeight = Math.round(imgH * fitScale);
+
       addElement('image', {
         src: url,
         borderWidth: 0,
@@ -253,12 +256,15 @@ export default function StudioBuilder() {
         x: (stageW - startWidth) / 2,
         y: (stageH - startHeight) / 2,
       });
+
       setLeftPanelTab('layers');
     };
+
     img.onerror = () => {
       addElement('image', { src: url, borderWidth: 0, fill: '#111827' });
       setLeftPanelTab('layers');
     };
+
     img.src = url;
   };
 
@@ -272,23 +278,18 @@ export default function StudioBuilder() {
       return;
     }
     if (type === 'container') {
-      addElement(type, {
-        fill: 'transparent',
-        borderColor: '#38bdf8',
-        borderWidth: 2,
-      });
+      addElement(type, { fill: 'transparent', borderColor: '#38bdf8', borderWidth: 2 });
       return;
     }
     addElement(type);
   };
 
-  const handleAssetSelect = (url: string) => {
-    addAsset(url);
-  };
+  const handleAssetSelect = (url: string) => addAsset(url);
 
   const handleLayerSelect = (id: string, event: React.MouseEvent) => {
     const isMulti = event.ctrlKey || event.metaKey;
     const isShift = event.shiftKey;
+
     if (isShift && selectedIds.length) {
       const startIndex = elements.findIndex((item) => item.id === selectedIds[0]);
       const endIndex = elements.findIndex((item) => item.id === id);
@@ -299,10 +300,9 @@ export default function StudioBuilder() {
         return;
       }
     }
+
     if (isMulti) {
-      setSelectedIds((prev) =>
-        prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
-      );
+      setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
     } else {
       setSelectedIds([id]);
     }
@@ -311,16 +311,20 @@ export default function StudioBuilder() {
   const handleLayerDrop = (event: React.DragEvent, dropId: string, listIndex: number) => {
     event.preventDefault();
     if (!dragLayerId || dragLayerId === dropId) return;
+
     const sourceIndex = elements.findIndex((item) => item.id === dragLayerId);
     const targetIndex = elements.length - 1 - listIndex;
     if (sourceIndex === -1 || targetIndex === -1) return;
+
     const next = [...elements];
     const [moved] = next.splice(sourceIndex, 1);
     next.splice(targetIndex, 0, moved);
+
     setLayout((prev) => {
       const current = prev ?? initialLayout;
       return { ...current, elements: next };
     });
+
     setDragLayerId(null);
     setDropLayerId(null);
   };
@@ -339,10 +343,13 @@ export default function StudioBuilder() {
   const handleLayerMove = (id: string, direction: 'up' | 'down') => {
     const currentIndex = elements.findIndex((item) => item.id === id);
     if (currentIndex === -1) return;
+
     const targetIndex = direction === 'up' ? currentIndex + 1 : currentIndex - 1;
     if (targetIndex < 0 || targetIndex >= elements.length) return;
+
     const next = [...elements];
     [next[currentIndex], next[targetIndex]] = [next[targetIndex], next[currentIndex]];
+
     setLayout((prev) => {
       const current = prev ?? initialLayout;
       return { ...current, elements: next };
@@ -355,9 +362,7 @@ export default function StudioBuilder() {
       return {
         ...current,
         elements: current.elements.map((element) =>
-          selectedIds.includes(element.id)
-            ? { ...element, x: element.x + dx, y: element.y + dy }
-            : element,
+          selectedIds.includes(element.id) ? { ...element, x: element.x + dx, y: element.y + dy } : element,
         ),
       };
     });
@@ -366,66 +371,68 @@ export default function StudioBuilder() {
   const handleDelete = () => {
     setLayout((prev) => {
       const current = prev ?? initialLayout;
-      return {
-        ...current,
-        elements: current.elements.filter((element) => !selectedIds.includes(element.id)),
-      };
+      return { ...current, elements: current.elements.filter((element) => !selectedIds.includes(element.id)) };
     });
     setSelectedIds([]);
   };
 
   const handleDuplicate = () => {
     if (selectedIds.length === 0) return;
-    const sourceElements = activeLayout.elements.filter((element) =>
-      selectedIds.includes(element.id),
-    );
+
+    const sourceElements = activeLayout.elements.filter((element) => selectedIds.includes(element.id));
     if (sourceElements.length === 0) return;
+
     const timestamp = Date.now();
     let counter = 0;
     const duplicated = sourceElements.map((element) => {
       counter += 1;
-      return {
-        ...element,
-        id: `${element.id}-copy-${timestamp}-${counter}`,
-        x: element.x + 20,
-        y: element.y + 20,
-      };
+      return { ...element, id: `${element.id}-copy-${timestamp}-${counter}`, x: element.x + 20, y: element.y + 20 };
     });
+
     setLayout((prev) => {
       const current = prev ?? initialLayout;
-      return {
-        ...current,
-        elements: [...current.elements, ...duplicated],
-      };
+      return { ...current, elements: [...current.elements, ...duplicated] };
     });
+
     setSelectedIds(duplicated.map((element) => element.id));
   };
 
   const handleFit = () => {
     const viewport = canvasViewportRef.current;
     if (!viewport) return;
+
     const { width, height } = viewport.getBoundingClientRect();
-    const scale = Math.min(width / canvasSize.width, height / canvasSize.height) * 0.9;
+
+    // Approximate: stage + rulers
+    const workbenchW = 1920 + 28;
+    const workbenchH = 1080 + 28;
+
+    const scale = Math.min(width / workbenchW, height / workbenchH) * 0.92;
     setCanvasScale(Math.max(0.1, Math.min(1, scale)));
   };
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (selectedIds.length === 0) return;
+
       const step = event.shiftKey ? 10 : 1;
+
       if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault();
         handleDelete();
         return;
       }
+
       if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
         event.preventDefault();
       }
+
       if (event.key === 'ArrowLeft') handleNudge(-step, 0);
       if (event.key === 'ArrowRight') handleNudge(step, 0);
       if (event.key === 'ArrowUp') handleNudge(0, -step);
       if (event.key === 'ArrowDown') handleNudge(0, step);
     };
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedIds]);
@@ -438,9 +445,7 @@ export default function StudioBuilder() {
             type="button"
             onClick={() => setLeftPanelTab('layers')}
             className={`rounded-full px-3 py-1 text-[11px] font-semibold ${
-              leftPanelTab === 'layers'
-                ? 'bg-sky-500/20 text-white'
-                : 'text-zinc-400 hover:text-white'
+              leftPanelTab === 'layers' ? 'bg-sky-500/20 text-white' : 'text-zinc-400 hover:text-white'
             }`}
           >
             Layers
@@ -449,9 +454,7 @@ export default function StudioBuilder() {
             type="button"
             onClick={() => setLeftPanelTab('assets')}
             className={`rounded-full px-3 py-1 text-[11px] font-semibold ${
-              leftPanelTab === 'assets'
-                ? 'bg-sky-500/20 text-white'
-                : 'text-zinc-400 hover:text-white'
+              leftPanelTab === 'assets' ? 'bg-sky-500/20 text-white' : 'text-zinc-400 hover:text-white'
             }`}
           >
             Assets
@@ -489,6 +492,7 @@ export default function StudioBuilder() {
                 <h2 className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
                   Layer Stack
                 </h2>
+
                 {selectedIds.length > 0 && (
                   <button
                     type="button"
@@ -498,33 +502,33 @@ export default function StudioBuilder() {
                     Clear Selection
                   </button>
                 )}
+
                 <div className="mt-4 space-y-2">
                   {reversedElements.map((layer, listIndex) => {
                     const isSelected = selectedIds.includes(layer.id);
                     const isDragging = dragLayerId === layer.id;
                     const isDropTarget = dropLayerId === layer.id && dragLayerId !== layer.id;
+
                     const currentIndex = elements.findIndex((item) => item.id === layer.id);
                     const canMoveUp = currentIndex < elements.length - 1;
                     const canMoveDown = currentIndex > 0;
+
                     return (
                       <div
                         key={layer.id}
                         draggable
-                        onDragStart={() => {
-                          setDragLayerId(layer.id);
-                        }}
+                        onDragStart={() => setDragLayerId(layer.id)}
                         onDragEnd={handleLayerDragEnd}
                         onDragOver={(event) => handleLayerDragOver(event, layer.id)}
                         onDrop={(event) => handleLayerDrop(event, layer.id, listIndex)}
                         className={`relative rounded-lg border px-3 py-2 text-left text-xs transition ${
-                          isSelected
-                            ? 'border-sky-500 bg-sky-500/10'
-                            : 'border-[#1f2636] bg-[#141a28]'
+                          isSelected ? 'border-sky-500 bg-sky-500/10' : 'border-[#1f2636] bg-[#141a28]'
                         } ${isDragging ? 'opacity-50' : ''}`}
                       >
                         {isDropTarget && (
                           <div className="absolute -top-1 left-2 right-2 h-0.5 rounded-full bg-sky-500" />
                         )}
+
                         <div className="flex items-center justify-between gap-2">
                           <button
                             type="button"
@@ -534,6 +538,7 @@ export default function StudioBuilder() {
                             <Move className="h-3 w-3 text-zinc-500" />
                             <span className="font-semibold">{layer.name}</span>
                           </button>
+
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
@@ -551,32 +556,23 @@ export default function StudioBuilder() {
                             >
                               ↓
                             </button>
+
                             <button
                               type="button"
                               onClick={() =>
-                                updateElement(layer.id, {
-                                  hidden: !layer.hidden,
-                                  visible: layer.hidden,
-                                })
+                                updateElement(layer.id, { hidden: !layer.hidden, visible: layer.hidden })
                               }
                               className="text-zinc-400 hover:text-white"
                             >
-                              {layer.hidden ? (
-                                <EyeOff className="h-4 w-4" />
-                              ) : (
-                                <Eye className="h-4 w-4" />
-                              )}
+                              {layer.hidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                             </button>
+
                             <button
                               type="button"
                               onClick={() => updateElement(layer.id, { locked: !layer.locked })}
                               className="text-zinc-400 hover:text-white"
                             >
-                              {layer.locked ? (
-                                <Lock className="h-4 w-4" />
-                              ) : (
-                                <Unlock className="h-4 w-4" />
-                              )}
+                              {layer.locked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
                             </button>
                           </div>
                         </div>
@@ -599,52 +595,42 @@ export default function StudioBuilder() {
           <div className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900 px-4 py-2 text-xs text-zinc-300">
             <div className="flex items-center gap-4">
               <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={showRulers}
-                  onChange={() => setShowRulers((prev) => !prev)}
-                />
+                <input type="checkbox" checked={showRulers} onChange={() => setShowRulers((prev) => !prev)} />
                 Rulers
               </label>
               <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={snapEnabled}
-                  onChange={() => setSnapEnabled((prev) => !prev)}
-                />
+                <input type="checkbox" checked={snapEnabled} onChange={() => setSnapEnabled((prev) => !prev)} />
                 Snap
               </label>
             </div>
+
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setShowGrid((prev) => !prev)}
                 className={`rounded-md border px-2 py-1 text-[11px] ${
-                  showGrid
-                    ? 'border-sky-500 bg-sky-500/20 text-white'
-                    : 'border-zinc-800 bg-zinc-850 text-zinc-300 hover:text-white'
+                  showGrid ? 'border-sky-500 bg-sky-500/20 text-white' : 'border-zinc-800 bg-zinc-850 text-zinc-300 hover:text-white'
                 }`}
               >
-                Grid
+                Grid!
               </button>
+
               <button
                 type="button"
                 onClick={() => setShowSafeZones((prev) => !prev)}
                 className={`rounded-md border px-2 py-1 text-[11px] ${
-                  showSafeZones
-                    ? 'border-sky-500 bg-sky-500/20 text-white'
-                    : 'border-zinc-800 bg-zinc-850 text-zinc-300 hover:text-white'
+                  showSafeZones ? 'border-sky-500 bg-sky-500/20 text-white' : 'border-zinc-800 bg-zinc-850 text-zinc-300 hover:text-white'
                 }`}
               >
                 Safe Zones
               </button>
-              <BuildBadge />
             </div>
+
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setCanvasScale((prev) => Math.max(0.3, prev - 0.05))}
+                  onClick={() => setCanvasScale((prev) => Math.max(0.1, +(prev - 0.05).toFixed(2)))}
                   className="rounded-md border border-zinc-800 bg-zinc-850 px-2 py-1 text-[11px] text-zinc-300 hover:text-white"
                 >
                   -
@@ -652,7 +638,7 @@ export default function StudioBuilder() {
                 <span className="text-[11px] text-zinc-400">{Math.round(canvasScale * 100)}%</span>
                 <button
                   type="button"
-                  onClick={() => setCanvasScale((prev) => Math.min(1, prev + 0.05))}
+                  onClick={() => setCanvasScale((prev) => Math.min(1, +(prev + 0.05).toFixed(2)))}
                   className="rounded-md border border-zinc-800 bg-zinc-850 px-2 py-1 text-[11px] text-zinc-300 hover:text-white"
                 >
                   +
@@ -665,77 +651,25 @@ export default function StudioBuilder() {
                   Fit
                 </button>
               </div>
+
+              <BuildBadge />
             </div>
           </div>
 
           <div className="flex-1 p-6" ref={canvasViewportRef}>
-            <div className="relative h-full w-full overflow-auto rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
-              <div
-                className="relative"
-                style={{
-                  width: canvasSize.width * canvasScale + (showRulers ? rulerSize : 0),
-                  height: canvasSize.height * canvasScale + (showRulers ? rulerSize : 0),
-                }}
-              >
-                {showRulers && (
-                  <div
-                    className="absolute left-[24px] top-0 h-[24px] w-full border-b border-zinc-800 bg-zinc-900"
-                    style={{ width: canvasSize.width * canvasScale }}
-                  >
-                    <div className="flex h-full w-full">
-                      {Array.from({ length: canvasSize.width / 100 + 1 }).map((_, index) => (
-                        <div key={`x-${index}`} className="relative flex-1">
-                          <div className="absolute bottom-1 left-0 h-2 w-px bg-zinc-600" />
-                          <span className="absolute bottom-0 left-1 text-[10px] text-zinc-500">
-                            {index * 100}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {showRulers && (
-                  <div
-                    className="absolute left-0 top-[24px] h-full w-[24px] border-r border-zinc-800 bg-zinc-900"
-                    style={{ height: canvasSize.height * canvasScale }}
-                  >
-                    <div className="flex h-full w-full flex-col">
-                      {Array.from({ length: canvasSize.height / 100 + 1 }).map((_, index) => (
-                        <div key={`y-${index}`} className="relative flex-1">
-                          <div className="absolute right-1 top-0 h-px w-2 bg-zinc-600" />
-                          <span className="absolute right-1 top-1 text-[10px] text-zinc-500">
-                            {index * 100}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div
-                  className="absolute left-[24px] top-[24px] origin-top-left rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl"
-                  style={{
-                    width: canvasSize.width * canvasScale,
-                    height: canvasSize.height * canvasScale,
-                  }}
-                >
-                  <div
-                    className="relative h-full w-full"
-                    style={{ transform: `scale(${canvasScale})`, transformOrigin: 'top left' }}
-                  >
-                    <CanvasStage
-                      layout={activeLayout}
-                      updateElement={controllerUpdateElement}
-                      selectedIds={selectedIds}
-                      snapEnabled={snapEnabled}
-                      showGrid={showGrid}
-                      showSafeZones={showSafeZones}
-                      onSelectionChange={setSelectedIds}
-                      onLayoutChange={setLayout}
-                    />
-                  </div>
-                </div>
-              </div>
+            <div className="relative h-full w-full overflow-auto rounded-2xl border border-zinc-800 bg-zinc-950 p-6 flex items-start justify-center">
+              <CanvasStage
+                layout={activeLayout}
+                updateElement={controllerUpdateElement}
+                selectedIds={selectedIds}
+                scale={canvasScale}
+                snapEnabled={snapEnabled}
+                showGrid={showGrid}
+                showRulers={showRulers}
+                showSafeZones={showSafeZones}
+                onSelectionChange={setSelectedIds}
+                onLayoutChange={setLayout}
+              />
             </div>
           </div>
         </div>
