@@ -27,6 +27,7 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasScale = scale ?? 1;
   const effectiveCanvasScale = canvasScale > 0 ? canvasScale : 1;
+  const elements = layout?.elements ?? [];
   
   const [dragState, setDragState] = useState<{
     isDragging: boolean;
@@ -66,8 +67,8 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
 
     // 3. Store Initial Positions (Snapshot for Drag)
     const initialPositions: Record<string, { x: number; y: number }> = {};
-    if (layout && layout.elements) {
-        layout.elements.forEach((el: any) => {
+    if (elements.length > 0) {
+        elements.forEach((el: any) => {
         if (newSelection.includes(el.id)) {
             initialPositions[el.id] = { x: el.x, y: el.y };
         }
@@ -115,8 +116,6 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
     }
   };
 
-  if (!layout) return <div className="flex-1 bg-zinc-950" />;
-
   return (
     <div 
       className="flex-1 bg-zinc-950 overflow-hidden relative flex items-center justify-center select-none"
@@ -125,7 +124,7 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
     >
       
 
-      <div className="absolute left-[24px] top-[24px] rounded border border-zinc-700 overflow-hidden shadow-2xl">
+      <div className="relative rounded border border-zinc-700 overflow-hidden shadow-2xl">
         {/* ZOOM CONTAINER */}
         <div 
           ref={stageRef}
@@ -159,7 +158,7 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
           )}
 
           {/* LAYOUT ELEMENTS */}
-          {layout.elements && layout.elements.map((el: any) => {
+          {elements.map((el: any) => {
               const isSelected = selectedIds.includes(el.id);
               return (
                   <div
