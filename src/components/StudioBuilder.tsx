@@ -239,8 +239,8 @@ export default function StudioBuilder() {
   const addAsset = (url: string) => {
     const img = new Image();
     img.onload = () => {
-      const stageW = canvasSize.width;
-      const stageH = canvasSize.height;
+    const stageW = 1920;
+    const stageH = 1080;
       const imgW = img.naturalWidth;
       const imgH = img.naturalHeight;
       const fitScale = Math.min(stageW / imgW, stageH / imgH, 1);
@@ -253,15 +253,24 @@ export default function StudioBuilder() {
         fill: '#111827',
         width: startWidth,
         height: startHeight,
-        x: (stageW - startWidth) / 2,
-        y: (stageH - startHeight) / 2,
+        x: Math.round((stageW - startWidth) / 2),
+        y: Math.round((stageH - startHeight) / 2),
       });
 
       setLeftPanelTab('layers');
     };
 
     img.onerror = () => {
-      addElement('image', { src: url, borderWidth: 0, fill: '#111827' });
+      addElement('image', {
+        src: url,
+        borderWidth: 0,
+        fill: '#111827',
+        width: 400,
+        height: 300,
+        x: Math.round((1920 - 400) / 2),
+        y: Math.round((1080 - 300) / 2),
+      });
+
       setLeftPanelTab('layers');
     };
 
