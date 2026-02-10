@@ -742,24 +742,42 @@ export default function StudioBuilder() {
                   </div>
                 )}
 
-                {/* STAGE SHELL (Option A: native size, single transform scale) */}
-<div
-  className="absolute left-[24px] top-[24px] origin-top-left rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl"
-  style={{
-    width: canvasSize.width,   // native, no scaling here
-    height: canvasSize.height, // native, no scaling here
-    transform: `scale(${canvasScale})`,
-    transformOrigin: 'top left',
-  }}
->
-  <CanvasStage
-    layout={activeLayout}
-    updateElement={controllerUpdateElement}
-    selectedIds={selectedIds}
-    snapEnabled={snapEnabled}
-    showGrid={showGrid}
-    showSafeZones={showSafeZones}
-    onSelectionChange={setSelectedIds}
-    onLayoutChange={setLayout}
-  />
-</div>
+                <div
+                    className="absolute left-[24px] top-[24px] origin-top-left rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl"
+                    style={
+                      width: canvasSize.width * canvasScale,
+                      height: canvasSize.height * canvasScale,
+                    }
+                  >
+                    <CanvasStage
+                      layout={activeLayout}
+                      updateElement={controllerUpdateElement}
+                      selectedIds={selectedIds}
+                      scale={canvasScale}
+                      snapEnabled={snapEnabled}
+                      showGrid={showGrid}
+                      showSafeZones={showSafeZones}
+                      onSelectionChange={setSelectedIds}
+                      onLayoutChange={setLayout}
+                    />
+                  </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <aside className="w-72 bg-zinc-900 border-l border-zinc-800 p-2">
+        <div className="flex h-full flex-col gap-6">
+          <CanvasSidebar
+            layout={activeLayout}
+            selectedIds={selectedIds}
+            onUpdateElement={updateElement}
+            onDuplicate={handleDuplicate}
+            onDelete={handleDelete}
+          />
+        </div>
+      </aside>
+    </div>
+  );
+}
