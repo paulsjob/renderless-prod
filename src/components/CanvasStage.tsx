@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import type { Element as ElementType } from '../types';
 
 interface CanvasStageProps {
@@ -10,242 +10,287 @@ interface CanvasStageProps {
   showGrid?: boolean;
   showRulers?: boolean;
   showSafeZones?: boolean;
+  disableInteraction?: boolean;
   onSelectionChange?: (ids: string[]) => void;
   onLayoutChange?: (layout: any) => void;
 }
 
-type DragState = {
-  pointerId: number;
-  startX: number;
-  startY: number;
-  initialPositions: Record<string, { x: number; y: number }>;
-} | null;
+const RULER_GUTTER = 28;
+const STAGE_W = 1920;
+const STAGE_H = 1080;
+
+// Snap step and grid steps
+const GRID_MINOR = 24;
+const GRID_MAJOR = 120;
 
 export const CanvasStage: React.FC<CanvasStageProps> = ({
   layout,
   updateElement,
   selectedIds = [],
-  scale = 1,
+  scale = 0.55,
   snapEnabled = false,
   showGrid = false,
+  showRulers = true,
   showSafeZones = false,
-  onSelectionChange = () => {},
-  onLayoutChange = () => {},
+  disableInteraction = false,
+  onSelectionChange,
 }) => {
   const stageRef = useRef<HTMLDivElement>(null);
-  const captureRef = useRef<{ pointerId: number; element: HTMLElement } | null>(null);
-  const canvasScale = scale > 0 ? scale : 1;
-  const elements = layout?.elements ?? [];
+  const canvasScale = scale && scale > 0 ? scale : 1;
 
-  const [dragState, setDragState] = useState<DragState>(null);
+  const [dragState, setDragState] = useState<{
+    startX: number;
+    startY: number;
+    initialPositions: Record<string, { x: number; y: number }>;
+  } | null>(null);
 
-  /* POINTER_TO_STAGE */
-  const clientToStage = (clientX: number, clientY: number): { x: number; y: number } => {
-    const rect = stageRef.current?.getBoundingClientRect();
-
-    if (!rect) {
-      return { x: 0, y: 0 };
-    }
-
+  const getStageCoords = (clientX: number, clientY: number) => {
+    if (!stageRef.current) return { x: 0, y: 0 };
+    const rect = stageRef.current.getBoundingClientRect();
     return {
       x: (clientX - rect.left) / canvasScale,
       y: (clientY - rect.top) / canvasScale,
     };
   };
 
-  const handlePointerDown = (e: React.PointerEvent, elementId: string) => {
-    e.stopPropagation();
-    e.preventDefault();
+  const handlePointerDown = (e: React.PointerEvent, elementId?: string) => {
+    if (disableInteraction) return;
 
-    const captureElement = e.currentTarget as HTMLElement;
-    captureElement.setPointerCapture(e.pointerId);
-    captureRef.current = { pointerId: e.pointerId, element: captureElement };
+    const coords = getStageCoords(e.clientX, e.clientY);
 
-    let newSelection = selectedIds;
-    if (!selectedIds.includes(elementId)) {
-      newSelection = e.shiftKey ? [...selectedIds, elementId] : [elementId];
-      onSelectionChange(newSelection);
+    // Clicked the empty stage
+    if (!elementId) {
+      if (!e.shiftKey) onSelectionChange?.([]);
+      return;
     }
 
+    e.stopPropagation();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+
+    let nextSelected = [...selectedIds];
+    if (e.shiftKey) {
+      nextSelected = selectedIds.includes(elementId)
+        ? selectedIds.filter((id) => id !== elementId)
+        : [...selectedIds, elementId];
+    } else if (!selectedIds.includes(elementId)) {
+      nextSelected = [elementId];
+    }
+    onSelectionChange?.(nextSelected);
+
     const initialPositions: Record<string, { x: number; y: number }> = {};
-    elements.forEach((el: any) => {
-      if (newSelection.includes(el.id)) {
-        initialPositions[el.id] = { x: el.x, y: el.y };
+    layout?.elements?.forEach((el: ElementType) => {
+      if (nextSelected.includes((el as any).id)) {
+        initialPositions[(el as any).id] = { x: (el as any).x, y: (el as any).y };
       }
     });
 
-    const startPoint = clientToStage(e.clientX, e.clientY);
-
     setDragState({
-      pointerId: e.pointerId,
-      startX: startPoint.x,
-      startY: startPoint.y,
+      startX: coords.x,
+      startY: coords.y,
       initialPositions,
     });
   };
 
-  /* DRAG_WINDOW_LISTENERS */
-  useEffect(() => {
-    if (!dragState) return;
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!dragState || disableInteraction) return;
 
-    const handleWindowPointerMove = (e: PointerEvent) => {
-      if (e.pointerId !== dragState.pointerId) return;
+    const coords = getStageCoords(e.clientX, e.clientY);
+    const dx = coords.x - dragState.startX;
+    const dy = coords.y - dragState.startY;
 
-      const currentPoint = clientToStage(e.clientX, e.clientY);
-      const dx = currentPoint.x - dragState.startX;
-      const dy = currentPoint.y - dragState.startY;
+    Object.entries(dragState.initialPositions).forEach(([id, pos]) => {
+      let nextX = pos.x + dx;
+      let nextY = pos.y + dy;
 
-      Object.keys(dragState.initialPositions).forEach((id) => {
-        const init = dragState.initialPositions[id];
-        const nextX = init.x + dx;
-        const nextY = init.y + dy;
-
-        updateElement(id, {
-          x: Math.round(snapEnabled ? Math.round(nextX / 10) * 10 : nextX),
-          y: Math.round(snapEnabled ? Math.round(nextY / 10) * 10 : nextY),
-        });
-      });
-    };
-
-    const cleanupPointerCapture = (pointerId: number) => {
-      const captured = captureRef.current;
-      if (!captured || captured.pointerId !== pointerId) return;
-      if (captured.element.hasPointerCapture(pointerId)) {
-        captured.element.releasePointerCapture(pointerId);
+      if (snapEnabled) {
+        nextX = Math.round(nextX / GRID_MINOR) * GRID_MINOR;
+        nextY = Math.round(nextY / GRID_MINOR) * GRID_MINOR;
       }
-      captureRef.current = null;
-    };
 
-    const handleWindowPointerUp = (e: PointerEvent) => {
-      if (e.pointerId !== dragState.pointerId) return;
-      cleanupPointerCapture(e.pointerId);
+      updateElement(id, { x: nextX, y: nextY } as any);
+    });
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (dragState) {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
       setDragState(null);
-    };
-
-    window.addEventListener('pointermove', handleWindowPointerMove);
-    window.addEventListener('pointerup', handleWindowPointerUp);
-    window.addEventListener('pointercancel', handleWindowPointerUp);
-
-    return () => {
-      window.removeEventListener('pointermove', handleWindowPointerMove);
-      window.removeEventListener('pointerup', handleWindowPointerUp);
-      window.removeEventListener('pointercancel', handleWindowPointerUp);
-    };
-  }, [dragState, snapEnabled, updateElement]);
-
-  const handleStageClick = (e: React.MouseEvent) => {
-    if (e.target === stageRef.current) {
-      onSelectionChange([]);
     }
   };
 
+  const workbenchW = STAGE_W + RULER_GUTTER;
+  const workbenchH = STAGE_H + RULER_GUTTER;
+
+  // Helper: read “your project element shape” without forcing type changes
+  const getEl = (el: any) => el as any;
+
   return (
-    /* INTEGRATION_WRAPPER */
-    <div className="relative select-none">
-      <div className="relative rounded border border-zinc-700 overflow-hidden shadow-2xl inline-block">
-        {/* STAGE_ELEMENT_OPTION_A */}
-        <div
-          ref={stageRef}
-          className="relative bg-black"
-          onClick={handleStageClick}
-          style={{
-            width: 1920,
-            height: 1080,
-            transform: `scale(${canvasScale})`,
-            transformOrigin: 'top left',
-            transition: 'transform 0.1s ease-out',
-          }}
-        >
-          {showGrid && (
-            <div
-              className="absolute inset-0 z-0 pointer-events-none"
-              style={{
-                backgroundImage: 'radial-gradient(#333 1px, transparent 1px)',
-                backgroundSize: '50px 50px',
-              }}
-            />
-          )}
-
-          {showSafeZones && (
-            <>
+    <div
+      className={`relative inline-block select-none bg-[#0a0a0b] border border-zinc-800 shadow-[0_50px_100px_rgba(0,0,0,1)] ${
+        disableInteraction ? 'pointer-events-none' : ''
+      }`}
+    >
+      {/* Outer box is sized in scaled pixels, but internal content stays native 1920x1080 */}
+      <div
+        className="relative overflow-visible"
+        style={{
+          width: workbenchW * canvasScale,
+          height: workbenchH * canvasScale,
+        }}
+      >
+        {/* Single scale transform for the entire workbench */}
+        <div className="absolute inset-0 origin-top-left" style={{ transform: `scale(${canvasScale})` }}>
+          {/* STAGE AREA */}
+          <div
+            ref={stageRef}
+            onPointerDown={(e) => handlePointerDown(e)}
+            className="absolute bg-black select-none touch-none overflow-hidden"
+            style={{
+              left: RULER_GUTTER,
+              top: RULER_GUTTER,
+              width: STAGE_W,
+              height: STAGE_H,
+            }}
+          >
+            {/* GRID LAYER */}
+            {showGrid && (
               <div
-                className="absolute inset-0 m-auto border-2 border-yellow-500 opacity-50 z-50 pointer-events-none"
-                style={{ width: '80%', height: '80%' }}
-              />
-              <div
-                className="absolute inset-0 m-auto border-2 border-green-500 opacity-50 z-50 pointer-events-none"
-                style={{ width: '90%', height: '90%' }}
-              />
-            </>
-          )}
-
-          {elements.map((el: any) => {
-            const isSelected = selectedIds.includes(el.id);
-            return (
-              <div
-                key={el.id}
-                onPointerDown={(e) => handlePointerDown(e, el.id)}
-                className={`absolute group outline-none ${isSelected ? 'cursor-move' : 'cursor-pointer'}`}
+                className="absolute inset-0 pointer-events-none"
                 style={{
-                  left: el.x,
-                  top: el.y,
-                  width: el.width,
-                  height: el.height,
-                  zIndex: 10,
+                  backgroundImage: `
+                    linear-gradient(to right, rgba(255,255,255,0.10) 2px, transparent 2px),
+                    linear-gradient(to bottom, rgba(255,255,255,0.10) 2px, transparent 2px),
+                    linear-gradient(to right, rgba(255,255,255,0.04) 1px, transparent 1px),
+                    linear-gradient(to bottom, rgba(255,255,255,0.04) 1px, transparent 1px)
+                  `,
+                  backgroundSize: `${GRID_MAJOR}px ${GRID_MAJOR}px, ${GRID_MAJOR}px ${GRID_MAJOR}px, ${GRID_MINOR}px ${GRID_MINOR}px, ${GRID_MINOR}px ${GRID_MINOR}px`,
                 }}
-              >
-                {isSelected && (
-                  <div className="absolute -inset-[2px] border-2 border-blue-500 pointer-events-none z-50">
-                    <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border border-blue-500" />
-                    <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border border-blue-500" />
-                    <div className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border border-blue-500" />
-                    <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border border-blue-500" />
+              />
+            )}
+
+            {/* SAFE ZONES LAYER */}
+            {showSafeZones && (
+              <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                <div className="absolute border-2 border-cyan-500/30" style={{ width: 1728, height: 972 }}>
+                  <div className="absolute top-2 left-2 text-[10px] uppercase font-black tracking-widest text-cyan-500/80 bg-black/40 px-2 py-0.5 rounded">
+                    Action Safe 90%
                   </div>
-                )}
-
-                {!isSelected && (
-                  <div className="absolute inset-0 border border-blue-400 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity" />
-                )}
-
-                {el.type === 'text' && (
-                  <div
-                    style={{
-                      color: el.style?.color || 'white',
-                      fontSize: el.style?.fontSize || 48,
-                      width: '100%',
-                      height: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      whiteSpace: 'nowrap',
-                      pointerEvents: 'none',
-                    }}
-                  >
-                    {el.data?.text || 'Text'}
+                </div>
+                <div className="absolute border-2 border-yellow-500/40" style={{ width: 1536, height: 864 }}>
+                  <div className="absolute top-2 left-2 text-[10px] uppercase font-black tracking-widest text-yellow-500/80 bg-black/40 px-2 py-0.5 rounded">
+                    Title Safe 80%
                   </div>
-                )}
-
-                {el.type === 'shape' && (
-                  <div
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      backgroundColor: el.style?.backgroundColor || '#3b82f6',
-                      pointerEvents: 'none',
-                    }}
-                  />
-                )}
-
-                {el.type === 'image' && (
-                  <img
-                    src={el.src}
-                    style={{ width: '100%', height: '100%', objectFit: 'fill', pointerEvents: 'none' }}
-                    draggable={false}
-                  />
-                )}
+                </div>
               </div>
-            );
-          })}
+            )}
+
+            {/* ELEMENTS LAYER */}
+            {layout?.elements?.map((raw: any) => {
+              const el = getEl(raw);
+              const isSelected = selectedIds.includes(el.id);
+
+              const borderWidth = el.borderWidth ?? 0;
+              const borderColor = el.borderColor ?? 'transparent';
+              const fill = el.fill ?? (el.type === 'container' ? 'transparent' : undefined);
+              const opacity = typeof el.opacity === 'number' ? el.opacity / 100 : 1;
+
+              return (
+                <div
+                  key={el.id}
+                  onPointerDown={(e) => handlePointerDown(e, el.id)}
+                  onPointerMove={handlePointerMove}
+                  onPointerUp={handlePointerUp}
+                  className={`absolute cursor-move transition-[box-shadow,outline] outline-offset-0 ${
+                    isSelected ? 'outline-[4px] outline-blue-500 z-50 shadow-2xl' : 'z-10'
+                  }`}
+                  style={{
+                    left: el.x,
+                    top: el.y,
+                    width: el.width,
+                    height: el.height,
+                    opacity,
+                    backgroundColor: el.type === 'shape' || el.type === 'container' ? fill : undefined,
+                    borderStyle: borderWidth > 0 ? 'solid' : undefined,
+                    borderWidth: borderWidth > 0 ? borderWidth : undefined,
+                    borderColor: borderWidth > 0 ? borderColor : undefined,
+                    pointerEvents: disableInteraction ? 'none' : 'auto',
+                  }}
+                >
+                  {el.type === 'text' && (
+                    <div
+                      className="w-full h-full flex items-center justify-center pointer-events-none px-6 text-center select-none font-sans font-black tracking-tight leading-tight uppercase"
+                      style={{
+                        color: el.fill ?? '#ffffff',
+                        fontSize: el.fontSize ?? 48,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {el.text ?? el.data?.text ?? ''}
+                    </div>
+                  )}
+
+                  {el.type === 'image' && el.src && (
+                    <img
+                      src={el.src}
+                      alt=""
+                      className="w-full h-full object-fill pointer-events-none"
+                      draggable={false}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* RULERS */}
+          <div className={`transition-opacity duration-300 ${showRulers ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+            {/* TOP RULER */}
+            <div
+              className="absolute top-0 bg-zinc-900 border-b border-zinc-800 z-40 overflow-hidden"
+              style={{ left: RULER_GUTTER, width: STAGE_W, height: RULER_GUTTER }}
+            >
+              <div className="relative h-full" style={{ width: STAGE_W }}>
+                {Array.from({ length: Math.ceil(STAGE_W / GRID_MAJOR) + 1 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="absolute bottom-0 h-full border-l border-zinc-800"
+                    style={{ left: i * GRID_MAJOR }}
+                  >
+                    <span className="absolute left-1 top-1 text-[9px] text-zinc-600 font-mono font-bold">
+                      {i * GRID_MAJOR}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* LEFT RULER */}
+            <div
+              className="absolute left-0 bg-zinc-900 border-r border-zinc-800 z-40 overflow-hidden"
+              style={{ top: RULER_GUTTER, height: STAGE_H, width: RULER_GUTTER }}
+            >
+              <div className="relative w-full h-full">
+                {Array.from({ length: Math.ceil(STAGE_H / GRID_MAJOR) + 1 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="absolute right-0 w-full border-t border-zinc-800"
+                    style={{ top: i * GRID_MAJOR }}
+                  >
+                    <span className="absolute left-1 top-1 text-[9px] text-zinc-600 font-mono font-bold">
+                      {i * GRID_MAJOR}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* CORNER BLOCK */}
+            <div
+              className="absolute top-0 left-0 bg-zinc-800 z-50 border-b border-r border-zinc-700"
+              style={{ width: RULER_GUTTER, height: RULER_GUTTER }}
+            />
+          </div>
         </div>
       </div>
     </div>
