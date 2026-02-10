@@ -25,6 +25,8 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
   onLayoutChange = () => {},
 }) => {
   const stageRef = useRef<HTMLDivElement>(null);
+  const canvasScale = scale ?? 1;
+  const effectiveCanvasScale = canvasScale > 0 ? canvasScale : 1;
   
   const [dragState, setDragState] = useState<{
     isDragging: boolean;
@@ -33,16 +35,16 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
     initialPositions: Record<string, { x: number; y: number }>;
   } | null>(null);
 
-  const getStageCoords = (clientX: number, clientY: number) => {
+  const getPointerStageCoords = (e: React.PointerEvent) => {
     const stageRect = stageRef.current?.getBoundingClientRect();
 
     if (!stageRect) {
-      return { x: clientX / scale, y: clientY / scale };
+      return { x: 0, y: 0 };
     }
 
     return {
-      x: (clientX - stageRect.left) / scale,
-      y: (clientY - stageRect.top) / scale,
+      x: (e.clientX - stageRect.left) / effectiveCanvasScale,
+      y: (e.clientY - stageRect.top) / effectiveCanvasScale,
     };
   };
 
@@ -72,7 +74,7 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
         });
     }
 
-    const startPoint = getStageCoords(e.clientX, e.clientY);
+    const startPoint = getPointerStageCoords(e);
 
     setDragState({
       isDragging: true,
@@ -85,7 +87,7 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!dragState || !dragState.isDragging) return;
 
-    const currentPoint = getStageCoords(e.clientX, e.clientY);
+    const currentPoint = getPointerStageCoords(e);
 
     // Stage-space delta (un-scaled 1920x1080 coordinates)
     const dx = currentPoint.x - dragState.startX;
@@ -132,7 +134,7 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
           style={{
             width: 1920,
             height: 1080,
-            transform: `scale(${scale})`,
+            transform: `scale(${effectiveCanvasScale})`,
             transformOrigin: 'top left',
             transition: 'transform 0.1s ease-out'
           }}
