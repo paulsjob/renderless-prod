@@ -1,596 +1,596 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Box,
   Eye,
-  Grid3X3,
-  LayoutDashboard,
-  Layers,
-  MousePointer2,
-  PanelsRightBottom,
-  Plus,
-  Shield,
-  Trash2,
+  EyeOff,
+  Image as ImageIcon,
+  Lock,
+  Move,
+  Square,
+  Type,
+  Unlock,
 } from 'lucide-react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { v4 as uuidv4 } from 'uuid';
-
 import { AssetLibrary } from './AssetLibrary';
-import { BroadcastMonitor } from './BroadcastMonitor';
 import { CanvasSidebar } from './CanvasSidebar';
 import { CanvasStage } from './CanvasStage';
-import { ControlRoom } from './ControlRoom';
-import { GameControl } from './GameControl';
-import { Overlay } from './Overlay';
-import { QuickControl } from './QuickControl';
-import { Studio } from './Studio';
+import { BuildBadge } from './BuildBadge';
+import { useBroadcastController } from '../hooks/useBroadcastController';
+import type { Element as LayoutElement, Layout } from '../types';
 
-import type { ElementModel, LayoutModel } from '../types';
-import { cloneElement, getDefaultLayouts, getLayoutById, moveElement } from '../types';
-import { supabase } from '../supabaseClient';
+const canvasSize = { width: 1920, height: 1080 };
+const rulerSize = 24;
 
-function clamp(n: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, n));
-}
+const buildingBlocks = [
+  { id: 'text', label: 'Text', icon: Type },
+  { id: 'image', label: 'Image', icon: ImageIcon },
+  { id: 'shape', label: 'Shape', icon: Square },
+  { id: 'container', label: 'Container', icon: Box },
+];
 
-function parseCanvasFromQuery(params: URLSearchParams) {
-  const w = Number(params.get('w') || 1920);
-  const h = Number(params.get('h') || 1080);
-  const width = Number.isFinite(w) ? clamp(w, 320, 10000) : 1920;
-  const height = Number.isFinite(h) ? clamp(h, 180, 10000) : 1080;
-  return { width, height };
-}
-
-const DEFAULT_ZOOM = 0.645;
+const initialLayout: Layout = {
+  id: 'layout-1',
+  name: 'Flowics Studio',
+  aspect_ratio: '16:9',
+  elements: [
+    {
+      id: 'bg',
+      type: 'shape',
+      name: 'Background Plate',
+      visible: true,
+      hidden: false,
+      locked: true,
+      x: 0,
+      y: 0,
+      width: 1920,
+      height: 1080,
+      rotation: 0,
+      opacity: 100,
+      fill: '#0b0f1a',
+      borderColor: '#1f2937',
+      borderWidth: 0,
+      dataSource: 'static',
+      dataPath: 'background',
+    },
+    {
+      id: 'headline',
+      type: 'text',
+      name: 'Headline Text',
+      visible: true,
+      hidden: false,
+      locked: false,
+      x: 150,
+      y: 140,
+      width: 980,
+      height: 160,
+      rotation: 0,
+      opacity: 100,
+      fill: '#f8fafc',
+      borderColor: '#38bdf8',
+      borderWidth: 2,
+      text: 'BREAKING NEWS',
+      dataSource: 'static',
+      dataPath: 'headline',
+    },
+    {
+      id: 'scorebug',
+      type: 'container',
+      name: 'Scorebug Group',
+      visible: true,
+      hidden: false,
+      locked: false,
+      x: 1180,
+      y: 64,
+      width: 640,
+      height: 220,
+      rotation: 0,
+      opacity: 95,
+      fill: '#111827',
+      borderColor: '#38bdf8',
+      borderWidth: 2,
+      dataSource: 'supabase',
+      dataPath: 'game.score',
+    },
+    {
+      id: 'ticker',
+      type: 'shape',
+      name: 'Ticker Bar',
+      visible: true,
+      hidden: false,
+      locked: false,
+      x: 140,
+      y: 860,
+      width: 1640,
+      height: 160,
+      rotation: 0,
+      opacity: 90,
+      fill: '#0f172a',
+      borderColor: '#f97316',
+      borderWidth: 2,
+      dataSource: 'supabase',
+      dataPath: 'game.ticker',
+    },
+  ],
+};
 
 export default function StudioBuilder() {
-  const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-
-  const [activeTab, setActiveTab] = useState<'studio' | 'control' | 'monitor' | 'overlay'>('studio');
-  const [activePanel, setActivePanel] = useState<'layers' | 'assets'>('layers');
-
+  const { layout, setLayout, updateElement: controllerUpdateElement } = useBroadcastController();
+  const [selectedIds, setSelectedIds] = useState<string[]>(['headline']);
+  const [snapEnabled, setSnapEnabled] = useState(true);
+  const [showRulers, setShowRulers] = useState(true);
   const [showGrid, setShowGrid] = useState(false);
   const [showSafeZones, setShowSafeZones] = useState(false);
-  const [snapEnabled, setSnapEnabled] = useState(true);
-
-  const [layouts, setLayouts] = useState<LayoutModel[]>(() => getDefaultLayouts());
-  const [activeLayoutId, setActiveLayoutId] = useState<string(() => layouts[0]?.id || 'default');
-  const activeLayout = useMemo(() => getLayoutById(layouts, activeLayoutId) || layouts[0], [layouts, activeLayoutId]);
-
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-
-  const [canvasScale, setCanvasScale] = useState(DEFAULT_ZOOM);
-  const [canvasSize, setCanvasSize] = useState(() => parseCanvasFromQuery(searchParams));
-
-  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [canvasScale, setCanvasScale] = useState(0.55);
+  const [dragLayerId, setDragLayerId] = useState<string | null>(null);
+  const [dropLayerId, setDropLayerId] = useState<string | null>(null);
+  const [leftPanelTab, setLeftPanelTab] = useState<'layers' | 'assets'>('layers');
+  const canvasViewportRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    const next = parseCanvasFromQuery(searchParams);
-    setCanvasSize(next);
-  }, [searchParams]);
+    if (!layout) {
+      setLayout(initialLayout);
+    }
+  }, [layout, setLayout]);
 
-  useEffect(() => {
-    const next = new URLSearchParams(searchParams);
-    next.set('w', String(canvasSize.width));
-    next.set('h', String(canvasSize.height));
-    setSearchParams(next, { replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canvasSize.width, canvasSize.height]);
+  const activeLayout = layout ?? initialLayout;
+  const elements = activeLayout.elements;
+  const reversedElements = useMemo(() => [...elements].reverse(), [elements]);
 
-  const selectedElements = useMemo(() => {
-    if (!activeLayout) return [];
-    return activeLayout.elements.filter((el) => selectedIds.includes(el.id));
-  }, [activeLayout, selectedIds]);
-
-  const selectedElement = selectedElements.length === 1 ? selectedElements[0] : null;
-
-  const updateLayout = (nextLayout: LayoutModel) => {
-    setLayouts((prev) => prev.map((l) => (l.id === nextLayout.id ? nextLayout : l)));
+  const updateElement = (id: string, updates: Partial<LayoutElement>) => {
+    setLayout((prev) => {
+      const current = prev ?? initialLayout;
+      return {
+        ...current,
+        elements: current.elements.map((item) =>
+          item.id === id ? { ...item, ...updates } : item,
+        ),
+      };
+    });
   };
 
-  const setLayout = (nextLayout: LayoutModel) => {
-    updateLayout(nextLayout);
-  };
-
-  const updateElement = (id: string, patch: Partial<ElementModel>) => {
-    if (!activeLayout) return;
-    const next: LayoutModel = {
-      ...activeLayout,
-      elements: activeLayout.elements.map((el) => (el.id === id ? { ...el, ...patch } : el)),
+  const addElement = (
+    type: LayoutElement['type'],
+    overrides: Partial<LayoutElement> = {},
+  ) => {
+    const id = `${type}-${Date.now()}`;
+    const baseDefaults = {
+      x: canvasSize.width / 2,
+      y: canvasSize.height / 2,
+      width: 260,
+      height: 180,
+      fill: '#111827',
+      borderColor: '#38bdf8',
+      borderWidth: 2,
+      text: undefined,
+      src: undefined,
+      fontSize: undefined,
+      dataPath: `static.${type}`,
     };
-    updateLayout(next);
+    const defaultsByType: Record<LayoutElement['type'], Partial<LayoutElement>> = {
+      text: {
+        name: 'Text Layer',
+        width: 520,
+        height: 96,
+        fill: '#ffffff',
+        borderWidth: 0,
+        text: 'HEADLINE',
+        fontSize: 48,
+        dataPath: 'static.text',
+      },
+      shape: {
+        name: 'Shape Layer',
+        width: 100,
+        height: 100,
+        fill: '#2563eb',
+        borderWidth: 0,
+        dataPath: 'static.shape',
+      },
+      image: {
+        name: 'Image Layer',
+        width: 260,
+        height: 180,
+        fill: '#4b5563',
+        borderColor: '#9ca3af',
+        borderWidth: 1,
+        dataPath: 'static.image',
+      },
+      container: {
+        name: 'Container Layer',
+        width: 320,
+        height: 220,
+        fill: 'transparent',
+        borderColor: '#38bdf8',
+        borderWidth: 2,
+        dataPath: 'static.container',
+      },
+    };
+    const resolved = { ...baseDefaults, ...defaultsByType[type], ...overrides };
+    const newElement: LayoutElement = {
+      id,
+      type,
+      name: resolved.name ?? `${type[0].toUpperCase()}${type.slice(1)} Layer`,
+      visible: true,
+      hidden: false,
+      locked: false,
+      x: (resolved.x ?? 0) - (resolved.width ?? 0) / 2,
+      y: (resolved.y ?? 0) - (resolved.height ?? 0) / 2,
+      width: resolved.width ?? 260,
+      height: resolved.height ?? 180,
+      rotation: 0,
+      opacity: 100,
+      fill: resolved.fill,
+      borderColor: resolved.borderColor,
+      borderWidth: resolved.borderWidth,
+      text: resolved.text,
+      src: resolved.src,
+      fontSize: resolved.fontSize,
+      dataSource: 'static',
+      dataPath: resolved.dataPath,
+      maskEnabled: false,
+    };
+    setLayout((prev) => {
+      const current = prev ?? initialLayout;
+      return { ...current, elements: [...current.elements, newElement] };
+    });
+    setSelectedIds([id]);
   };
 
-  const controllerUpdateElement = (id: string, patch: Partial<ElementModel>) => {
-    updateElement(id, patch);
+  const addAsset = (url: string) => {
+    const img = new Image();
+    img.onload = () => {
+      const stageW = canvasSize.width;
+      const stageH = canvasSize.height;
+      const imgW = img.naturalWidth;
+      const imgH = img.naturalHeight;
+      const fitScale = Math.min(stageW / imgW, stageH / imgH, 1);
+      const startWidth = Math.round(imgW * fitScale);
+      const startHeight = Math.round(imgH * fitScale);
+      addElement('image', {
+        src: url,
+        borderWidth: 0,
+        fill: '#111827',
+        width: startWidth,
+        height: startHeight,
+        x: (stageW - startWidth) / 2,
+        y: (stageH - startHeight) / 2,
+      });
+      setLeftPanelTab('layers');
+    };
+    img.onerror = () => {
+      addElement('image', { src: url, borderWidth: 0, fill: '#111827' });
+      setLeftPanelTab('layers');
+    };
+    img.src = url;
   };
 
-  const controllerUpdateElementFromStage = (id: string, patch: Partial<ElementModel>) => {
-    updateElement(id, patch);
+  const handleBuildingBlockClick = (type: LayoutElement['type']) => {
+    if (type === 'image') {
+      setLeftPanelTab('assets');
+      return;
+    }
+    if (type === 'text') {
+      addElement(type, { text: 'HEADLINE', fill: '#ffffff' });
+      return;
+    }
+    if (type === 'container') {
+      addElement(type, {
+        fill: 'transparent',
+        borderColor: '#38bdf8',
+        borderWidth: 2,
+      });
+      return;
+    }
+    addElement(type);
+  };
+
+  const handleAssetSelect = (url: string) => {
+    addAsset(url);
+  };
+
+  const handleLayerSelect = (id: string, event: React.MouseEvent) => {
+    const isMulti = event.ctrlKey || event.metaKey;
+    const isShift = event.shiftKey;
+    if (isShift && selectedIds.length) {
+      const startIndex = elements.findIndex((item) => item.id === selectedIds[0]);
+      const endIndex = elements.findIndex((item) => item.id === id);
+      if (startIndex !== -1 && endIndex !== -1) {
+        const [from, to] = startIndex < endIndex ? [startIndex, endIndex] : [endIndex, startIndex];
+        const rangeIds = elements.slice(from, to + 1).map((item) => item.id);
+        setSelectedIds(rangeIds);
+        return;
+      }
+    }
+    if (isMulti) {
+      setSelectedIds((prev) =>
+        prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+      );
+    } else {
+      setSelectedIds([id]);
+    }
+  };
+
+  const handleLayerDrop = (event: React.DragEvent, dropId: string, listIndex: number) => {
+    event.preventDefault();
+    if (!dragLayerId || dragLayerId === dropId) return;
+    const sourceIndex = elements.findIndex((item) => item.id === dragLayerId);
+    const targetIndex = elements.length - 1 - listIndex;
+    if (sourceIndex === -1 || targetIndex === -1) return;
+    const next = [...elements];
+    const [moved] = next.splice(sourceIndex, 1);
+    next.splice(targetIndex, 0, moved);
+    setLayout((prev) => {
+      const current = prev ?? initialLayout;
+      return { ...current, elements: next };
+    });
+    setDragLayerId(null);
+    setDropLayerId(null);
+  };
+
+  const handleLayerDragOver = (event: React.DragEvent, layerId: string) => {
+    event.preventDefault();
+    if (!dragLayerId || dragLayerId === layerId) return;
+    setDropLayerId(layerId);
+  };
+
+  const handleLayerDragEnd = () => {
+    setDragLayerId(null);
+    setDropLayerId(null);
+  };
+
+  const handleLayerMove = (id: string, direction: 'up' | 'down') => {
+    const currentIndex = elements.findIndex((item) => item.id === id);
+    if (currentIndex === -1) return;
+    const targetIndex = direction === 'up' ? currentIndex + 1 : currentIndex - 1;
+    if (targetIndex < 0 || targetIndex >= elements.length) return;
+    const next = [...elements];
+    [next[currentIndex], next[targetIndex]] = [next[targetIndex], next[currentIndex]];
+    setLayout((prev) => {
+      const current = prev ?? initialLayout;
+      return { ...current, elements: next };
+    });
+  };
+
+  const handleNudge = (dx: number, dy: number) => {
+    setLayout((prev) => {
+      const current = prev ?? initialLayout;
+      return {
+        ...current,
+        elements: current.elements.map((element) =>
+          selectedIds.includes(element.id)
+            ? { ...element, x: element.x + dx, y: element.y + dy }
+            : element,
+        ),
+      };
+    });
   };
 
   const handleDelete = () => {
-    if (!activeLayout) return;
-    if (selectedIds.length === 0) return;
-
-    const next: LayoutModel = {
-      ...activeLayout,
-      elements: activeLayout.elements.filter((el) => !selectedIds.includes(el.id)),
-    };
-
+    setLayout((prev) => {
+      const current = prev ?? initialLayout;
+      return {
+        ...current,
+        elements: current.elements.filter((element) => !selectedIds.includes(element.id)),
+      };
+    });
     setSelectedIds([]);
-    updateLayout(next);
   };
 
   const handleDuplicate = () => {
-    if (!activeLayout) return;
     if (selectedIds.length === 0) return;
-
-    const clones: ElementModel[] = selectedIds
-      .map((id) => activeLayout.elements.find((e) => e.id === id))
-      .filter(Boolean)
-      .map((e) => cloneElement(e as ElementModel));
-
-    const next: LayoutModel = {
-      ...activeLayout,
-      elements: [...activeLayout.elements, ...clones],
-    };
-
-    updateLayout(next);
-    setSelectedIds(clones.map((c) => c.id));
-  };
-
-  const addText = () => {
-    if (!activeLayout) return;
-
-    const id = `text-${uuidv4()}`;
-    const next: ElementModel = {
-      id,
-      type: 'text',
-      name: 'Text',
-      x: 200,
-      y: 200,
-      w: 400,
-      h: 80,
-      rotation: 0,
-      opacity: 1,
-      fill: '#ffffff',
-      border: 0,
-      borderColor: '#000000',
-      mask: false,
-      text: 'Text',
-      fontSize: 48,
-      fontFamily: 'Inter',
-      fontWeight: 700,
-      align: 'center',
-      valign: 'middle',
-      dataSource: 'manual',
-    };
-
-    const nextLayout: LayoutModel = {
-      ...activeLayout,
-      elements: [...activeLayout.elements, next],
-    };
-
-    updateLayout(nextLayout);
-    setSelectedIds([id]);
-  };
-
-  const addShape = () => {
-    if (!activeLayout) return;
-
-    const id = `shape-${uuidv4()}`;
-    const next: ElementModel = {
-      id,
-      type: 'shape',
-      name: 'Shape',
-      x: 200,
-      y: 200,
-      w: 400,
-      h: 200,
-      rotation: 0,
-      opacity: 1,
-      fill: '#3b82f6',
-      border: 2,
-      borderColor: '#60a5fa',
-      mask: false,
-      dataSource: 'manual',
-    };
-
-    const nextLayout: LayoutModel = {
-      ...activeLayout,
-      elements: [...activeLayout.elements, next],
-    };
-
-    updateLayout(nextLayout);
-    setSelectedIds([id]);
-  };
-
-  const addContainer = () => {
-    if (!activeLayout) return;
-
-    const id = `container-${uuidv4()}`;
-    const next: ElementModel = {
-      id,
-      type: 'container',
-      name: 'Container',
-      x: 200,
-      y: 200,
-      w: 600,
-      h: 400,
-      rotation: 0,
-      opacity: 1,
-      fill: '#111827',
-      border: 2,
-      borderColor: '#1f2937',
-      mask: false,
-      dataSource: 'manual',
-      children: [],
-    };
-
-    const nextLayout: LayoutModel = {
-      ...activeLayout,
-      elements: [...activeLayout.elements, next],
-    };
-
-    updateLayout(nextLayout);
-    setSelectedIds([id]);
-  };
-
-  const addImage = (url?: string) => {
-    if (!activeLayout) return;
-
-    const id = `image-${uuidv4()}`;
-    const next: ElementModel = {
-      id,
-      type: 'image',
-      name: 'Image',
-      x: 200,
-      y: 200,
-      w: 640,
-      h: 360,
-      rotation: 0,
-      opacity: 1,
-      fill: '#ffffff',
-      border: 0,
-      borderColor: '#000000',
-      mask: false,
-      dataSource: 'manual',
-      imageUrl: url || '',
-      fit: 'contain',
-    };
-
-    const nextLayout: LayoutModel = {
-      ...activeLayout,
-      elements: [...activeLayout.elements, next],
-    };
-
-    updateLayout(nextLayout);
-    setSelectedIds([id]);
-  };
-
-  const handleDropImage = (url: string) => {
-    addImage(url);
-  };
-
-  const goToStudio = () => {
-    setActiveTab('studio');
-    navigate('/?view=studio');
-  };
-
-  const goToControl = () => {
-    setActiveTab('control');
-    navigate('/?view=control');
-  };
-
-  const goToMonitor = () => {
-    setActiveTab('monitor');
-    navigate('/?view=monitor');
-  };
-
-  const goToOverlay = () => {
-    setActiveTab('overlay');
-    navigate('/?view=overlay');
-  };
-
-  useEffect(() => {
-    const view = searchParams.get('view');
-    if (view === 'control') setActiveTab('control');
-    else if (view === 'monitor') setActiveTab('monitor');
-    else if (view === 'overlay') setActiveTab('overlay');
-    else setActiveTab('studio');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const canvasZoomIn = () => setCanvasScale((z) => clamp(z + 0.05, 0.2, 2));
-  const canvasZoomOut = () => setCanvasScale((z) => clamp(z - 0.05, 0.2, 2));
-  const canvasFit = () => setCanvasScale(DEFAULT_ZOOM);
-
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Delete' || e.key === 'Backspace') {
-      handleDelete();
-    }
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
-      e.preventDefault();
-      handleDuplicate();
-    }
-  };
-
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedIds, activeLayout]);
-
-  const saveLayoutsToSupabase = async () => {
-    try {
-      const payload = {
-        layouts,
-        activeLayoutId,
-        canvasSize,
-        canvasScale,
-        showGrid,
-        showSafeZones,
-        snapEnabled,
+    const sourceElements = activeLayout.elements.filter((element) =>
+      selectedIds.includes(element.id),
+    );
+    if (sourceElements.length === 0) return;
+    const timestamp = Date.now();
+    let counter = 0;
+    const duplicated = sourceElements.map((element) => {
+      counter += 1;
+      return {
+        ...element,
+        id: `${element.id}-copy-${timestamp}-${counter}`,
+        x: element.x + 20,
+        y: element.y + 20,
       };
-
-      const { error } = await supabase.from('renderless_layouts').upsert({
-        id: 'default',
-        payload,
-        updated_at: new Date().toISOString(),
-      });
-
-      if (error) {
-        // eslint-disable-next-line no-console
-        console.error(error);
-      }
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error(err);
-    }
+    });
+    setLayout((prev) => {
+      const current = prev ?? initialLayout;
+      return {
+        ...current,
+        elements: [...current.elements, ...duplicated],
+      };
+    });
+    setSelectedIds(duplicated.map((element) => element.id));
   };
 
-  const loadLayoutsFromSupabase = async () => {
-    try {
-      const { data, error } = await supabase.from('renderless_layouts').select('*').eq('id', 'default').single();
-      if (error) {
-        // eslint-disable-next-line no-console
-        console.error(error);
+  const handleFit = () => {
+    const viewport = canvasViewportRef.current;
+    if (!viewport) return;
+    const { width, height } = viewport.getBoundingClientRect();
+    const scale = Math.min(width / canvasSize.width, height / canvasSize.height) * 0.9;
+    setCanvasScale(Math.max(0.1, Math.min(1, scale)));
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (selectedIds.length === 0) return;
+      const step = event.shiftKey ? 10 : 1;
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        event.preventDefault();
+        handleDelete();
         return;
       }
-      if (!data?.payload) return;
-
-      const payload = data.payload as any;
-      if (payload.layouts) setLayouts(payload.layouts);
-      if (payload.activeLayoutId) setActiveLayoutId(payload.activeLayoutId);
-      if (payload.canvasSize) setCanvasSize(payload.canvasSize);
-      if (payload.canvasScale) setCanvasScale(payload.canvasScale);
-      if (typeof payload.showGrid === 'boolean') setShowGrid(payload.showGrid);
-      if (typeof payload.showSafeZones === 'boolean') setShowSafeZones(payload.showSafeZones);
-      if (typeof payload.snapEnabled === 'boolean') setSnapEnabled(payload.snapEnabled);
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error(err);
-    }
-  };
-
-  useEffect(() => {
-    loadLayoutsFromSupabase();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    saveLayoutsToSupabase();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layouts, activeLayoutId, canvasSize, canvasScale, showGrid, showSafeZones, snapEnabled]);
-
-  if (activeTab === 'control') {
-    return (
-      <div className="h-screen w-screen bg-black text-white overflow-hidden">
-        <ControlRoom
-          layout={activeLayout}
-          selectedIds={selectedIds}
-          onSelectIds={setSelectedIds}
-          onUpdateElement={controllerUpdateElement}
-          onDuplicate={handleDuplicate}
-          onDelete={handleDelete}
-        />
-      </div>
-    );
-  }
-
-  if (activeTab === 'monitor') {
-    return (
-      <div className="h-screen w-screen bg-black text-white overflow-hidden">
-        <BroadcastMonitor layout={activeLayout} />
-      </div>
-    );
-  }
-
-  if (activeTab === 'overlay') {
-    return (
-      <div className="h-screen w-screen bg-black text-white overflow-hidden">
-        <Overlay layout={activeLayout} />
-      </div>
-    );
-  }
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+        event.preventDefault();
+      }
+      if (event.key === 'ArrowLeft') handleNudge(-step, 0);
+      if (event.key === 'ArrowRight') handleNudge(step, 0);
+      if (event.key === 'ArrowUp') handleNudge(0, -step);
+      if (event.key === 'ArrowDown') handleNudge(0, step);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedIds]);
 
   return (
-    <div className="flex h-screen w-screen bg-black text-xs text-white overflow-hidden">
+    <div className="flex h-screen w-screen bg-black text-xs">
       <aside className="w-64 bg-zinc-900 border-r border-zinc-800 flex flex-col">
-        <div className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900 px-4 py-2 text-xs text-zinc-300">
-          <div className="flex items-center gap-2">
-            <LayoutDashboard size={16} />
-            <span>BUILDING BLOCKS</span>
-          </div>
+        <div className="flex items-center gap-2 border-b border-zinc-800 px-4 py-3">
+          <button
+            type="button"
+            onClick={() => setLeftPanelTab('layers')}
+            className={`rounded-full px-3 py-1 text-[11px] font-semibold ${
+              leftPanelTab === 'layers'
+                ? 'bg-sky-500/20 text-white'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            Layers
+          </button>
+          <button
+            type="button"
+            onClick={() => setLeftPanelTab('assets')}
+            className={`rounded-full px-3 py-1 text-[11px] font-semibold ${
+              leftPanelTab === 'assets'
+                ? 'bg-sky-500/20 text-white'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            Assets
+          </button>
         </div>
 
-        <div className="p-4 space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              className="flex items-center justify-center gap-2 rounded-md border border-[#1f2636] bg-[#141a28] px-2 py-2 text-[11px] text-zinc-200 hover:bg-[#192238]"
-              onClick={addText}
-            >
-              <span className="flex items-center gap-2">
-                <span className="inline-flex items-center justify-center w-6 h-6 rounded bg-zinc-950 border border-zinc-800">
-                  T
-                </span>
-                Text
-              </span>
-            </button>
+        <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-4">
+          {leftPanelTab === 'assets' ? (
+            <AssetLibrary onAssetSelect={handleAssetSelect} />
+          ) : (
+            <>
+              <div>
+                <h2 className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+                  Building Blocks
+                </h2>
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  {buildingBlocks.map((block) => {
+                    const Icon = block.icon;
+                    return (
+                      <button
+                        key={block.id}
+                        type="button"
+                        onClick={() => handleBuildingBlockClick(block.id as LayoutElement['type'])}
+                        className="flex items-center gap-2 rounded-lg border border-dashed border-[#2a3346] bg-[#141a28] px-3 py-3 text-xs text-zinc-200 hover:border-sky-500 hover:text-white"
+                      >
+                        <Icon className="h-4 w-4" />
+                        {block.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
-            <button
-              className="flex items-center justify-center gap-2 rounded-md border border-[#1f2636] bg-[#141a28] px-2 py-2 text-[11px] text-zinc-200 hover:bg-[#192238]"
-              onClick={() => addImage()}
-            >
-              <span className="flex items-center gap-2">
-                <span className="inline-flex items-center justify-center w-6 h-6 rounded bg-zinc-950 border border-zinc-800">
-                  <Eye size={14} />
-                </span>
-                Image
-              </span>
-            </button>
-
-            <button
-              className="flex items-center justify-center gap-2 rounded-md border border-[#1f2636] bg-[#141a28] px-2 py-2 text-[11px] text-zinc-200 hover:bg-[#192238]"
-              onClick={addShape}
-            >
-              <span className="flex items-center gap-2">
-                <span className="inline-flex items-center justify-center w-6 h-6 rounded bg-zinc-950 border border-zinc-800">
-                  <Plus size={14} />
-                </span>
-                Shape
-              </span>
-            </button>
-
-            <button
-              className="flex items-center justify-center gap-2 rounded-md border border-[#1f2636] bg-[#141a28] px-2 py-2 text-[11px] text-zinc-200 hover:bg-[#192238]"
-              onClick={addContainer}
-            >
-              <span className="flex items-center gap-2">
-                <span className="inline-flex items-center justify-center w-6 h-6 rounded bg-zinc-950 border border-zinc-800">
-                  <PanelsRightBottom size={14} />
-                </span>
-                Container
-              </span>
-            </button>
-          </div>
-
-          <div className="border-t border-zinc-800 pt-3">
-            <div className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">LAYER STACK</div>
-
-            <button
-              type="button"
-              className="mt-3 w-full rounded-md border border-[#2a3346] bg-[#0f1420] px-2 py-1 text-[11px] text-zinc-300 hover:text-white"
-              onClick={() => setSelectedIds([])}
-            >
-              Clear Selection
-            </button>
-
-            <div className="mt-4 space-y-2">
-              {activeLayout?.elements
-                ?.slice()
-                .reverse()
-                .map((el) => {
-                  const selected = selectedIds.includes(el.id);
-                  return (
-                    <div
-                      key={el.id}
-                      className={[
-                        'relative rounded-lg border px-3 py-2 text-left text-xs transition',
-                        selected ? 'border-sky-500 bg-sky-500/10' : 'border-[#1f2636] bg-[#141a28]',
-                      ].join(' ')}
-                      draggable
-                      onClick={() => setSelectedIds([el.id])}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <MousePointer2 size={12} className="text-zinc-400 shrink-0" />
-                          <span className="truncate">{el.name || el.type}</span>
-                        </div>
-
-                        <div className="flex items-center gap-2 shrink-0">
+              <div>
+                <h2 className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+                  Layer Stack
+                </h2>
+                {selectedIds.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedIds([])}
+                    className="mt-3 w-full rounded-md border border-[#2a3346] bg-[#0f1420] px-2 py-1 text-[11px] text-zinc-300 hover:text-white"
+                  >
+                    Clear Selection
+                  </button>
+                )}
+                <div className="mt-4 space-y-2">
+                  {reversedElements.map((layer, listIndex) => {
+                    const isSelected = selectedIds.includes(layer.id);
+                    const isDragging = dragLayerId === layer.id;
+                    const isDropTarget = dropLayerId === layer.id && dragLayerId !== layer.id;
+                    const currentIndex = elements.findIndex((item) => item.id === layer.id);
+                    const canMoveUp = currentIndex < elements.length - 1;
+                    const canMoveDown = currentIndex > 0;
+                    return (
+                      <div
+                        key={layer.id}
+                        draggable
+                        onDragStart={() => {
+                          setDragLayerId(layer.id);
+                        }}
+                        onDragEnd={handleLayerDragEnd}
+                        onDragOver={(event) => handleLayerDragOver(event, layer.id)}
+                        onDrop={(event) => handleLayerDrop(event, layer.id, listIndex)}
+                        className={`relative rounded-lg border px-3 py-2 text-left text-xs transition ${
+                          isSelected
+                            ? 'border-sky-500 bg-sky-500/10'
+                            : 'border-[#1f2636] bg-[#141a28]'
+                        } ${isDragging ? 'opacity-50' : ''}`}
+                      >
+                        {isDropTarget && (
+                          <div className="absolute -top-1 left-2 right-2 h-0.5 rounded-full bg-sky-500" />
+                        )}
+                        <div className="flex items-center justify-between gap-2">
                           <button
                             type="button"
-                            className="text-zinc-400 hover:text-white"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedIds([el.id]);
-                              handleDuplicate();
-                            }}
-                            title="Duplicate"
+                            onClick={(event) => handleLayerSelect(layer.id, event)}
+                            className="flex items-center gap-2 text-left"
                           >
-                            <Trash2 size={14} className="rotate-180" />
+                            <Move className="h-3 w-3 text-zinc-500" />
+                            <span className="font-semibold">{layer.name}</span>
                           </button>
-
-                          <button
-                            type="button"
-                            className="text-zinc-400 hover:text-white"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedIds([el.id]);
-                              handleDelete();
-                            }}
-                            title="Delete"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleLayerMove(layer.id, 'up')}
+                              disabled={!canMoveUp}
+                              className="text-zinc-400 hover:text-white disabled:cursor-not-allowed disabled:text-zinc-600"
+                            >
+                              ↑
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleLayerMove(layer.id, 'down')}
+                              disabled={!canMoveDown}
+                              className="text-zinc-400 hover:text-white disabled:cursor-not-allowed disabled:text-zinc-600"
+                            >
+                              ↓
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateElement(layer.id, {
+                                  hidden: !layer.hidden,
+                                  visible: layer.hidden,
+                                })
+                              }
+                              className="text-zinc-400 hover:text-white"
+                            >
+                              {layer.hidden ? (
+                                <EyeOff className="h-4 w-4" />
+                              ) : (
+                                <Eye className="h-4 w-4" />
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => updateElement(layer.id, { locked: !layer.locked })}
+                              className="text-zinc-400 hover:text-white"
+                            >
+                              {layer.locked ? (
+                                <Lock className="h-4 w-4" />
+                              ) : (
+                                <Unlock className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-            </div>
-          </div>
+                    );
+                  })}
+                </div>
+              </div>
 
-          <div className="border-t border-zinc-800 pt-3">
-            <div className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">VIEWS</div>
-
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                className={[
-                  'rounded-md border px-2 py-2 text-[11px] hover:bg-[#192238]',
-                  activeTab === 'studio' ? 'border-sky-500 bg-sky-500/10' : 'border-[#1f2636] bg-[#141a28]',
-                ].join(' ')}
-                onClick={goToStudio}
-              >
-                Studio
-              </button>
-
-              <button
-                type="button"
-                className={[
-                  'rounded-md border px-2 py-2 text-[11px] hover:bg-[#192238]',
-                  activeTab === 'control' ? 'border-sky-500 bg-sky-500/10' : 'border-[#1f2636] bg-[#141a28]',
-                ].join(' ')}
-                onClick={goToControl}
-              >
-                Control
-              </button>
-
-              <button
-                type="button"
-                className={[
-                  'rounded-md border px-2 py-2 text-[11px] hover:bg-[#192238]',
-                  activeTab === 'monitor' ? 'border-sky-500 bg-sky-500/10' : 'border-[#1f2636] bg-[#141a28]',
-                ].join(' ')}
-                onClick={goToMonitor}
-              >
-                Monitor
-              </button>
-
-              <button
-                type="button"
-                className={[
-                  'rounded-md border px-2 py-2 text-[11px] hover:bg-[#192238]',
-                  activeTab === 'overlay' ? 'border-sky-500 bg-sky-500/10' : 'border-[#1f2636] bg-[#141a28]',
-                ].join(' ')}
-                onClick={goToOverlay}
-              >
-                Overlay
-              </button>
-            </div>
-          </div>
+              <div className="rounded-lg border border-[#1f2636] bg-[#141a28] p-3 text-xs text-zinc-400">
+                Selected Elements: {selectedIds.length ? selectedIds.join(', ') : 'None'}
+              </div>
+            </>
+          )}
         </div>
       </aside>
 
@@ -598,102 +598,122 @@ export default function StudioBuilder() {
         <div className="absolute inset-0 flex flex-col">
           <div className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900 px-4 py-2 text-xs text-zinc-300">
             <div className="flex items-center gap-4">
-              <button
-                type="button"
-                className="flex items-center gap-2 rounded-md border border-[#1f2636] bg-[#141a28] px-2 py-1 text-[11px] text-zinc-200 hover:bg-[#192238]"
-                onClick={() => setActivePanel('layers')}
-              >
-                <Layers size={14} />
-                Layers
-              </button>
-
-              <button
-                type="button"
-                className="flex items-center gap-2 rounded-md border border-[#1f2636] bg-[#141a28] px-2 py-1 text-[11px] text-zinc-200 hover:bg-[#192238]"
-                onClick={() => setActivePanel('assets')}
-              >
-                <Eye size={14} />
-                Assets
-              </button>
-
-              <label className="flex items-center gap-2 select-none text-[10px] text-zinc-500 overflow-hidden">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={showRulers}
+                  onChange={() => setShowRulers((prev) => !prev)}
+                />
+                Rulers
+              </label>
+              <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
                   checked={snapEnabled}
-                  onChange={(e) => setSnapEnabled(e.target.checked)}
+                  onChange={() => setSnapEnabled((prev) => !prev)}
                 />
                 Snap
               </label>
-
-              <button
-                type="button"
-                className={[
-                  'flex items-center gap-2 rounded-md border px-2 py-1 text-[11px] hover:bg-[#192238]',
-                  showGrid ? 'border-sky-500 bg-sky-500/10' : 'border-[#1f2636] bg-[#141a28]',
-                ].join(' ')}
-                onClick={() => setShowGrid((s) => !s)}
-              >
-                <Grid3X3 size={14} />
-                Grid
-              </button>
-
-              <button
-                type="button"
-                className={[
-                  'flex items-center gap-2 rounded-md border px-2 py-1 text-[11px] hover:bg-[#192238]',
-                  showSafeZones ? 'border-sky-500 bg-sky-500/10' : 'border-[#1f2636] bg-[#141a28]',
-                ].join(' ')}
-                onClick={() => setShowSafeZones((s) => !s)}
-              >
-                <Shield size={14} />
-                Safe Zones
-              </button>
-
-              <div className="text-[11px] text-zinc-400">
-                Build: {searchParams.get('build') || 'dev'}
-              </div>
             </div>
-
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                className="rounded-md border border-[#1f2636] bg-[#141a28] px-2 py-1 text-[11px] text-zinc-200 hover:bg-[#192238]"
-                onClick={canvasZoomOut}
+                onClick={() => setShowGrid((prev) => !prev)}
+                className={`rounded-md border px-2 py-1 text-[11px] ${
+                  showGrid
+                    ? 'border-sky-500 bg-sky-500/20 text-white'
+                    : 'border-zinc-800 bg-zinc-850 text-zinc-300 hover:text-white'
+                }`}
               >
-                -
+                Grid
               </button>
-
-              <div className="w-14 text-center text-[11px] text-zinc-300">{Math.round(canvasScale * 100)}%</div>
-
               <button
                 type="button"
-                className="rounded-md border border-[#1f2636] bg-[#141a28] px-2 py-1 text-[11px] text-zinc-200 hover:bg-[#192238]"
-                onClick={canvasZoomIn}
+                onClick={() => setShowSafeZones((prev) => !prev)}
+                className={`rounded-md border px-2 py-1 text-[11px] ${
+                  showSafeZones
+                    ? 'border-sky-500 bg-sky-500/20 text-white'
+                    : 'border-zinc-800 bg-zinc-850 text-zinc-300 hover:text-white'
+                }`}
               >
-                +
+                Safe Zones
               </button>
-
-              <button
-                type="button"
-                className="rounded-md border border-[#1f2636] bg-[#141a28] px-2 py-1 text-[11px] text-zinc-200 hover:bg-[#192238]"
-                onClick={canvasFit}
-              >
-                Fit
-              </button>
+              <BuildBadge />
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCanvasScale((prev) => Math.max(0.3, prev - 0.05))}
+                  className="rounded-md border border-zinc-800 bg-zinc-850 px-2 py-1 text-[11px] text-zinc-300 hover:text-white"
+                >
+                  -
+                </button>
+                <span className="text-[11px] text-zinc-400">{Math.round(canvasScale * 100)}%</span>
+                <button
+                  type="button"
+                  onClick={() => setCanvasScale((prev) => Math.min(1, prev + 0.05))}
+                  className="rounded-md border border-zinc-800 bg-zinc-850 px-2 py-1 text-[11px] text-zinc-300 hover:text-white"
+                >
+                  +
+                </button>
+                <button
+                  type="button"
+                  onClick={handleFit}
+                  className="rounded-md border border-zinc-800 bg-zinc-850 px-2 py-1 text-[11px] text-zinc-300 hover:text-white"
+                >
+                  Fit
+                </button>
+              </div>
             </div>
           </div>
 
-          <div className="flex-1 p-6">
-            <div className="relative h-full w-full overflow-auto rounded-2xl border border-zinc-800 bg-zinc-950 p-6" ref={scrollRef}>
+          <div className="flex-1 p-6" ref={canvasViewportRef}>
+            <div className="relative h-full w-full overflow-auto rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
               <div
                 className="relative"
                 style={{
-                  width: canvasSize.width * canvasScale,
-                  height: canvasSize.height * canvasScale,
+                  width: canvasSize.width * canvasScale + (showRulers ? rulerSize : 0),
+                  height: canvasSize.height * canvasScale + (showRulers ? rulerSize : 0),
                 }}
               >
+                {showRulers && (
+                  <div
+                    className="absolute left-[24px] top-0 h-[24px] w-full border-b border-zinc-800 bg-zinc-900"
+                    style={{ width: canvasSize.width * canvasScale }}
+                  >
+                    <div className="flex h-full w-full">
+                      {Array.from({ length: canvasSize.width / 100 + 1 }).map((_, index) => (
+                        <div key={`x-${index}`} className="relative flex-1">
+                          <div className="absolute bottom-1 left-0 h-2 w-px bg-zinc-600" />
+                          <span className="absolute bottom-0 left-1 text-[10px] text-zinc-500">
+                            {index * 100}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {showRulers && (
+                  <div
+                    className="absolute left-0 top-[24px] h-full w-[24px] border-r border-zinc-800 bg-zinc-900"
+                    style={{ height: canvasSize.height * canvasScale }}
+                  >
+                    <div className="flex h-full w-full flex-col">
+                      {Array.from({ length: canvasSize.height / 100 + 1 }).map((_, index) => (
+                        <div key={`y-${index}`} className="relative flex-1">
+                          <div className="absolute right-1 top-0 h-px w-2 bg-zinc-600" />
+                          <span className="absolute right-1 top-1 text-[10px] text-zinc-500">
+                            {index * 100}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div
-                  className="absolute left-0 top-0 origin-top-left rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl"
+                  className="absolute left-[24px] top-[24px] origin-top-left rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl"
                   style={{
                     width: canvasSize.width * canvasScale,
                     height: canvasSize.height * canvasScale,
@@ -701,32 +721,18 @@ export default function StudioBuilder() {
                 >
                   <div
                     className="relative h-full w-full"
-                    style={{
-                      transform: `scale(${canvasScale})`,
-                      transformOrigin: 'left top',
-                    }}
+                    style={{ transform: `scale(${canvasScale})`, transformOrigin: 'top left' }}
                   >
-                    <div
-                      className="relative bg-black shadow-2xl"
-                      style={{
-                        width: canvasSize.width,
-                        height: canvasSize.height,
-                        transform: 'scale(1)',
-                        transformOrigin: 'center center',
-                        transition: 'transform 0.1s ease-out',
-                      }}
-                    >
-                      <CanvasStage
-                        layout={activeLayout}
-                        updateElement={controllerUpdateElementFromStage}
-                        selectedIds={selectedIds}
-                        snapEnabled={snapEnabled}
-                        showGrid={showGrid}
-                        showSafeZones={showSafeZones}
-                        onSelectionChange={setSelectedIds}
-                        onLayoutChange={setLayout}
-                      />
-                    </div>
+                    <CanvasStage
+                      layout={activeLayout}
+                      updateElement={controllerUpdateElement}
+                      selectedIds={selectedIds}
+                      snapEnabled={snapEnabled}
+                      showGrid={showGrid}
+                      showSafeZones={showSafeZones}
+                      onSelectionChange={setSelectedIds}
+                      onLayoutChange={setLayout}
+                    />
                   </div>
                 </div>
               </div>
