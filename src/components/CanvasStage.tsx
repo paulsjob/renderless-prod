@@ -33,6 +33,8 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
     pointerId: number;
     startX: number;
     startY: number;
+    pointerId: number;
+    captureElement: Element;
     initialPositions: Record<string, { x: number; y: number }>;
   } | null>(null);
 
@@ -71,6 +73,8 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
     });
 
     const startPoint = clientToStageCoords(e.clientX, e.clientY);
+
+    const startPoint = getPointerStageCoords(e);
 
     setDragState({
       isDragging: true,
