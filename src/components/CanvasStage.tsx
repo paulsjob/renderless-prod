@@ -33,6 +33,8 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
     isDragging: boolean;
     startX: number;
     startY: number;
+    pointerId: number;
+    captureElement: Element;
     initialPositions: Record<string, { x: number; y: number }>;
   } | null>(null);
 
@@ -56,7 +58,8 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
     e.preventDefault();
     
     // 1. Capture Pointer (Prevents mouse slipping off element)
-    (e.target as Element).setPointerCapture(e.pointerId);
+    const captureElement = e.currentTarget as Element;
+    captureElement.setPointerCapture(e.pointerId);
 
     // 2. Handle Selection
     let newSelection = selectedIds;
@@ -81,6 +84,8 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
       isDragging: true,
       startX: startPoint.x,
       startY: startPoint.y,
+      pointerId: e.pointerId,
+      captureElement,
       initialPositions,
     });
   };
@@ -103,10 +108,12 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
     });
   };
 
-  const handlePointerUp = (e: React.PointerEvent) => {
+  const handlePointerUp = () => {
     if (dragState) {
-        setDragState(null);
-        (e.target as Element).releasePointerCapture(e.pointerId);
+      if (dragState.captureElement.hasPointerCapture(dragState.pointerId)) {
+        dragState.captureElement.releasePointerCapture(dragState.pointerId);
+      }
+      setDragState(null);
     }
   };
 
@@ -121,6 +128,7 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
       className="flex-1 bg-zinc-950 overflow-hidden relative flex items-center justify-center select-none"
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
     >
       
 
